@@ -16,10 +16,6 @@ type (
 		FormatUrlParam(name string) string
 		AddMenuToRouter(instance kitchen.IInstance, prefix ...string)
 	}
-	IWebCookwareWithDataWrapper interface {
-		kitchen.ICookware
-		WrapWebOutput(output any, err error) (wrappedOutput any, httpStatus int)
-	}
 	IWebCookware interface {
 		kitchen.ICookware
 		RequestParser(action kitchen.IDish, bundle kitchen.IWebBundle) (IWebCookware, error) //parse user, permission

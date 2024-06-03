@@ -64,7 +64,6 @@ func (m *wrapper) serveHttp(dish kitchen.IDish) (method string, urlParts []strin
 	cookware := dish.Cookware()
 	_, isWebInput := input.(routerHelper.IWebParsableInput)
 	_, isWebCookware := cookware.(routerHelper.IWebCookware)
-	_, isDataWrapper := any(dish.Menu().Cookware()).(routerHelper.IWebCookwareWithDataWrapper)
 	urlParamsN := make([]string, 0)
 	for _, up := range urlParams {
 		urlParamsN = append(urlParamsN, up[0])
@@ -82,13 +81,13 @@ func (m *wrapper) serveHttp(dish kitchen.IDish) (method string, urlParts []strin
 			bundle := &muxBundle{routerHelper.NewDefaultWebBundle(r, ww)}
 			input, _, err = routerHelper.ParseRequestToInput(input, bundle, webUrlParamMap, isWebInput)
 			if err != nil {
-				routerHelper.WebReturn(dish, ww, nil, routerHelper.WebErr{Err: err, HttpStatus: http.StatusBadRequest, ErrorCode: http.StatusBadRequest}, isDataWrapper)
+				routerHelper.WebReturn(dish, ww, nil, routerHelper.WebErr{Err: err, HttpStatus: http.StatusBadRequest, ErrorCode: http.StatusBadRequest})
 				return
 			}
 			if isWebCookware {
 				cookware, err = any(cookware).(routerHelper.IWebCookware).RequestParser(dish, bundle)
 				if err != nil {
-					routerHelper.WebReturn(dish, ww, nil, routerHelper.WebErr{Err: err, HttpStatus: http.StatusBadRequest, ErrorCode: http.StatusBadRequest}, isDataWrapper)
+					routerHelper.WebReturn(dish, ww, nil, routerHelper.WebErr{Err: err, HttpStatus: http.StatusBadRequest, ErrorCode: http.StatusBadRequest})
 					return
 				}
 			}
@@ -106,7 +105,7 @@ func (m *wrapper) serveHttp(dish kitchen.IDish) (method string, urlParts []strin
 
 			output, err := plAction.ExecByIdAny(kitchen.NewWebContext(r.Context(), bundle, cookware), input, ids...)
 
-			routerHelper.WebReturn(dish, ww, output, err, isDataWrapper)
+			routerHelper.WebReturn(dish, ww, output, err)
 		}
 	} else {
 		return method, urlParts, func(w http.ResponseWriter, r *http.Request) {
@@ -116,19 +115,19 @@ func (m *wrapper) serveHttp(dish kitchen.IDish) (method string, urlParts []strin
 			bundle := &muxBundle{routerHelper.NewDefaultWebBundle(r, ww)}
 			input, _, err = routerHelper.ParseRequestToInput(input, bundle, webUrlParamMap, isWebInput)
 			if err != nil {
-				routerHelper.WebReturn(dish, ww, nil, routerHelper.WebErr{Err: err, HttpStatus: http.StatusBadRequest, ErrorCode: http.StatusBadRequest}, isDataWrapper)
+				routerHelper.WebReturn(dish, ww, nil, routerHelper.WebErr{Err: err, HttpStatus: http.StatusBadRequest, ErrorCode: http.StatusBadRequest})
 				return
 			}
 			if isWebCookware {
 				cookware, err = any(cookware).(routerHelper.IWebCookware).RequestParser(dish, bundle)
 				if err != nil {
-					routerHelper.WebReturn(dish, ww, nil, routerHelper.WebErr{Err: err, HttpStatus: http.StatusBadRequest, ErrorCode: http.StatusBadRequest}, isDataWrapper)
+					routerHelper.WebReturn(dish, ww, nil, routerHelper.WebErr{Err: err, HttpStatus: http.StatusBadRequest, ErrorCode: http.StatusBadRequest})
 					return
 				}
 			}
 			output, err := dish.CookAny(kitchen.NewWebContext(r.Context(), bundle, cookware), input)
 
-			routerHelper.WebReturn(dish, ww, output, err, isDataWrapper)
+			routerHelper.WebReturn(dish, ww, output, err)
 		}
 	}
 }
