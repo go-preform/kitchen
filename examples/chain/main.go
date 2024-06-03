@@ -83,7 +83,10 @@ func newMenus() (*menus, []int) {
 	return &menus{coffeeMenu, cakeMenu, setMenu}, cnt
 }
 
-var mgrMenu1 *menus
+var (
+	mgrMenu1 *menus
+	mgr      kitchen.IManager
+)
 
 var orderCnt1 = []int{0, 0, 0}
 
@@ -115,7 +118,7 @@ func init() {
 		err error
 	)
 
-	mgr := kitchen.NewDeliveryManager(localAddr, uint16(localPort))
+	mgr = kitchen.NewDeliveryManager(localAddr, uint16(localPort))
 	if hostAddr != "" && hostPort != 0 {
 		mgr.SetMainKitchen(hostAddr, uint16(hostPort))
 	}
@@ -145,6 +148,9 @@ func main() {
 	server := &fasthttp.Server{
 		Handler: func(ctx *fasthttp.RequestCtx) {
 			switch string(ctx.Path()) {
+			case "/disable":
+				mgr.DisableMenu(string(ctx.QueryArgs().Peek("menu")))
+				ctx.WriteString("Disabled:" + string(ctx.QueryArgs().Peek("menu")))
 			case "/cappuccino_local":
 				for i := 0; i < 1000000; i++ {
 					_ = i ^ 2 ^ 2 ^ 2 ^ 2

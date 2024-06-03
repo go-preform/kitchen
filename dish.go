@@ -50,7 +50,8 @@ func (a *Dish[D, I, O]) init(parent iCookbook[D], action iDish[D], name string, 
 	a.cookbook.init()
 	a.concurrentLimit = new(int32)
 	a.running = new(int32)
-	a.locker = &sync.Mutex{}
+	a.spinLocker = &sync.Mutex{}
+	a.runningLock = &sync.Mutex{}
 	a.name = name
 	a.fieldTags = tags
 	a.instance = action
@@ -278,8 +279,7 @@ func (a *Dish[D, I, O]) SetCooker(cooker DishCooker[D, I, O]) *Dish[D, I, O] {
 		a.asyncChan = nil
 	}
 	a.rawCooker = cooker
-	if a._menu.Manager() != nil {
-		var mgr = a._menu.Manager()
+	if mgr := a._menu.Manager(); mgr != nil {
 		a.cooker = func(ctx IContext[D], input I) (output O, err error) {
 			var (
 				handler func(ctx context.Context, input []byte) (output []byte, err error)
@@ -407,7 +407,6 @@ func (a *Dish[D, I, O]) doCook(cooker DishCooker[D, I, O], ctx IContext[D], inpu
 	}
 	a.emitAfterCook(ctx, input, output, err)
 	node.finish(output, err)
-	servingPool.Put(node)
 	return output, err
 }
 
@@ -429,12 +428,14 @@ func (a *Dish[D, I, O]) CookAny(ctx context.Context, input any) (output any, err
 
 func (a *Dish[D, I, O]) newCtx(ctx context.Context, cookware ...D) *Context[D] {
 	var (
-		c      *Context[D]
-		webCtx *webContext
-		ok     bool
+		c  *Context[D]
+		ok bool
 	)
 	if c, ok = ctx.(*Context[D]); ok {
-		return c
+		cc := &Context[D]{Context: c, menu: a._menu, sets: a.sets, dish: a}
+		cc.cookware = c.cookware
+		cc.traceableDep = c.traceableDep
+		return cc
 	}
 	c = &Context[D]{Context: ctx, menu: a._menu, sets: a.sets, dish: a}
 	var (
@@ -443,9 +444,8 @@ func (a *Dish[D, I, O]) newCtx(ctx context.Context, cookware ...D) *Context[D] {
 	if len(cookware) != 0 {
 		cw = cookware[0]
 	} else {
-		if webCtx, ok = ctx.(*webContext); ok {
-			c.webContext = webCtx
-			cw = webCtx.cookware.(D)
+		if c.webContext, ok = ctx.(*webContext); ok {
+			cw = c.webContext.cookware.(D)
 		} else {
 			cw = a.cookware()
 		}
@@ -460,7 +460,62 @@ func (a *Dish[D, I, O]) newCtx(ctx context.Context, cookware ...D) *Context[D] {
 		c.cookware = cw
 	}
 	if a.isTraceable {
-		c.traceableDep = any(c.cookware).(ITraceableCookware)
+		c.traceableDep = any(c.cookware).(ITraceableCookware[D])
 	}
 	return c
+}
+
+func (a Dish[D, I, O]) start(ctx IContext[D], input I, panicRecover bool) (sess *dishServing) {
+	sess = a.newServing(input) //&dishServing{ctx: ctx, Input: input}
+	if a.isTraceable {
+		sess.tracerSpan = ctx.startTrace(TraceIdGenerator(), input)
+	}
+	if len(ctx.Session(sess)) == 1 {
+		sess.unlocker = a.ifLockThis()
+		if panicRecover {
+			defer func() {
+				if rec := recover(); rec != nil {
+					if a.isTraceable {
+						sess.tracerSpan.AddEvent("panic", map[string]any{"panic": rec, "stack": string(debug.Stack())})
+					} else {
+						fmt.Printf("panicRecover from panic: \n%v\n%s", a, string(debug.Stack()))
+					}
+					sess.finish(nil, fmt.Errorf("panic: %v", rec))
+				}
+			}()
+		}
+	}
+	return
+}
+func (r *Dish[D, I, O]) newServing(input I) *dishServing {
+	serving := &dishServing{}
+	serving.Action = r.instance.(IDish)
+	serving.Input = input
+	return serving
+}
+
+type dishServing struct {
+	Action     IDish
+	Input      any
+	Output     any
+	Error      error
+	Finish     bool
+	unlocker   func()
+	tracerSpan ITraceSpan
+}
+
+func (node *dishServing) finish(output any, err error) {
+	if node.unlocker != nil {
+		node.unlocker()
+	}
+	if node.tracerSpan != nil {
+		node.tracerSpan.End(output, err)
+	}
+	node.Finish = true
+	node.Output = output
+	node.Error = err
+}
+
+func (node *dishServing) Record() (IDish, bool, any, any, error) {
+	return node.Action, node.Finish, node.Input, node.Output, node.Error
 }

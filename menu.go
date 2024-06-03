@@ -105,13 +105,14 @@ func (b *MenuBase[W, D]) initWithoutFields(w iMenu[D], bundle any) {
 		menuType  = menuValue.Type()
 	)
 	w.setCookware(bundle)
-	_, b.isTraceable = any(b.menuCookware).(ITraceableCookware)
+	_, b.isTraceable = any(b.menuCookware).(ITraceableCookware[D])
 	b.instance = w
 	b.name = menuType.Name()
 	_, b.isInheritableCookware = any(bundle).(ICookwareInheritable)
 	b.concurrentLimit = new(int32)
 	b.running = new(int32)
-	b.locker = &sync.Mutex{}
+	b.spinLocker = &sync.Mutex{}
+	b.runningLock = &sync.Mutex{}
 
 	w.setName(menuType.Name())
 }

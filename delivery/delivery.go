@@ -24,5 +24,5 @@ type ILogistic interface {
 	SwitchLeader(url string, port uint16)
 	Shutdown()
 	IsLeader() bool
-	Order(menuId, dishId uint16) (func(ctx context.Context, input []byte) ([]byte, error), error)
+	Order(menuId, dishId uint16, skipNodeIds ...uint32) (func(ctx context.Context, input []byte) ([]byte, error), error)
 }

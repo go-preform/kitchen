@@ -181,6 +181,7 @@ func main() {
 # Contributors
 - [Dillion Kum](https://github.com/dkishere)
 - [vali637](https://github.com/vali637)
+- [SuicaLondon](https://github.com/SuicaLondon)
 - [Eleron8](https://github.com/Eleron8)
 - [aditya1604](https://github.com/aditya1604)
 - [mrtztg](https://github.com/mrtztg)

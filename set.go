@@ -32,7 +32,8 @@ func (s *SetBase[D]) init(p iMenu[D], group, parent iSet[D], name string) {
 	s.instance = group
 	s.concurrentLimit = new(int32)
 	s.running = new(int32)
-	s.locker = &sync.Mutex{}
+	s.spinLocker = &sync.Mutex{}
+	s.runningLock = &sync.Mutex{}
 	if parent != nil {
 		s.parentSet = parent.tree()
 	}

@@ -40,8 +40,8 @@ type (
 		New() D
 		Put(any)
 	}
-	ITraceableCookware interface {
-		StartTrace(ctx context.Context, id string, spanName string, input any) (context.Context, ITraceSpan)
+	ITraceableCookware[D ICookware] interface {
+		StartTrace(ctx IContext[D], id string, input any) (context.Context, iTraceSpan[D])
 	}
 	ITraceSpan interface {
 		Detail() any
@@ -49,7 +49,10 @@ type (
 		AddEvent(name string, attrSets ...map[string]any)
 		SetAttributes(key string, value any)
 		Raw() any
-		logSideEffect(ctx context.Context, instanceName string, toLog []any) (context.Context, ITraceSpan)
+	}
+	iTraceSpan[D ICookware] interface {
+		ITraceSpan
+		logSideEffect(ctx IContext[D], instanceName string, toLog []any) (context.Context, iTraceSpan[D])
 	}
 	IInstance interface {
 		Name() string
@@ -136,6 +139,10 @@ type (
 		Session(...IDishServe) []IDishServe
 		SetCtx(context.Context)
 		RawCookware() ICookware
+		FromWeb() IWebBundle
+		GetCtx() context.Context
+		servedWeb()
+		served()
 	}
 	IDishServe interface {
 		finish(output any, err error)
@@ -143,19 +150,15 @@ type (
 	}
 	IContext[D ICookware] interface {
 		IContextWithSession
+		traceableCookware() ITraceableCookware[D]
+		startTrace(id string, input any) iTraceSpan[D]
 		Menu() iMenu[D]
 		Sets() []iSet[D]
 		Dish() iDish[D]
 		Dependency() D
 		Cookware() D
-		traceableCookware() ITraceableCookware
-		startTrace(name string, id string, input any) ITraceSpan
-		logSideEffect(instanceName string, toLog []any) (IContext[D], ITraceSpan)
-		FromWeb() IWebBundle
-		GetCtx() context.Context
-		TraceSpan() ITraceSpan
-		servedWeb()
-		served()
+		logSideEffect(instanceName string, toLog []any) (IContext[D], iTraceSpan[D])
+		TraceSpan() iTraceSpan[D]
 	}
 	IPipelineContext[D IPipelineCookware[M], M IPipelineModel] interface {
 		IContext[D]

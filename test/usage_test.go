@@ -18,6 +18,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -81,17 +82,21 @@ type OrderWithTracer struct {
 }
 
 var (
-	logger = zerolog.New(io.Discard) //.With().Timestamp().Logger()
+	logger = zerolog.New(os.Stdout) //.With().Timestamp().Logger()
 )
 
 func TestInit(t *testing.T) {
 
 	var (
-		callStack []int
+		callStack     []int
+		counterTracer = kitchen.NewCounterTraceableCookware[DummyWorkerCookwareWithTracer]()
 	)
 
 	OrderWorker := kitchen.InitMenu[*OrderWithTracer, DummyWorkerCookwareWithTracer](&OrderWithTracer{}, DummyWorkerCookwareWithTracer{
-		ITraceableCookware: kitchen.NewZeroLogTraceableCookware(&logger),
+		ITraceableCookware: kitchen.ChainTraceableCookware[DummyWorkerCookwareWithTracer]{
+			kitchen.NewZeroLogTraceableCookware[DummyWorkerCookwareWithTracer](&logger),
+			counterTracer,
+		},
 	})
 	OrderWorker.ConcurrentLimit(1) //only single thread
 	OrderWorker.Pending.TestA.SetCooker(func(ctx kitchen.IContext[DummyWorkerCookwareWithTracer], input int) (output int, err error) {
@@ -144,12 +149,14 @@ func TestInit(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, 1000, res)
 
+	assert.Equal(t, uint64(5), *counterTracer.Menus[0].Ok)
+
 }
 
 func TestUrl(t *testing.T) {
 
 	OrderWorker := kitchen.InitMenu[*OrderWithTracer, DummyWorkerCookwareWithTracer](&OrderWithTracer{}, DummyWorkerCookwareWithTracer{
-		ITraceableCookware: kitchen.NewZeroLogTraceableCookware(&logger),
+		ITraceableCookware: kitchen.NewZeroLogTraceableCookware[DummyWorkerCookwareWithTracer](&logger),
 	})
 
 	url, urlParams, method, webUrlParamMap := routerHelper.DishUrlAndMethod(&OrderWorker.TestWebUrl, routerHelper.DefaultUrlParamWrapper)
@@ -270,7 +277,7 @@ func TestPipeline(t *testing.T) {
 	//assert.Nil(t, err)
 	order := kitchen.InitPipeline[*DummyPipelineCookware, *PurchaseOrder, *OrderPipeline](&OrderPipeline{}, &DummyPipelineCookware{
 		DummyWorkerCookwareWithTracer: DummyWorkerCookwareWithTracer{
-			ITraceableCookware: kitchen.NewZeroLogTraceableCookware(&logger),
+			ITraceableCookware: kitchen.NewZeroLogTraceableCookware[DummyWorkerCookwareWithTracer](&logger),
 		},
 		PipelineSqlTxCookware: NewPipelineSqlTxCookware[*PurchaseOrder](&sql.DB{}),
 	})
@@ -333,7 +340,7 @@ func TestWeb(t *testing.T) {
 
 	webTest := kitchen.InitMenu[*WebTest, *DummyWebCookware](&WebTest{}, &DummyWebCookware{
 		DummyWorkerCookwareWithTracer: DummyWorkerCookwareWithTracer{
-			ITraceableCookware: kitchen.NewZeroLogTraceableCookware(&logger),
+			ITraceableCookware: kitchen.NewZeroLogTraceableCookware[DummyWorkerCookwareWithTracer](&logger),
 		},
 	})
 	webTest.Test.Plain.SetCooker(func(ctx kitchen.IContext[*DummyWebCookware], input string) (output string, err error) {
@@ -487,7 +494,7 @@ type DummyWorkerCookware struct {
 }
 
 type DummyWorkerCookwareWithTracer struct {
-	kitchen.ITraceableCookware
+	kitchen.ITraceableCookware[DummyWorkerCookwareWithTracer]
 	DummyWorkerCookware
 }
 
@@ -556,7 +563,7 @@ var (
 func init() {
 	OrderWorker = kitchen.InitMenu[*Order, DummyWorkerCookware](&Order{}, DummyWorkerCookware{})
 	OrderWorkerWithTracer = kitchen.InitMenu[*OrderWithTracer, DummyWorkerCookwareWithTracer](&OrderWithTracer{}, DummyWorkerCookwareWithTracer{
-		ITraceableCookware: kitchen.NewZeroLogTraceableCookware(&logger),
+		ITraceableCookware: kitchen.NewZeroLogTraceableCookware[DummyWorkerCookwareWithTracer](&logger),
 	})
 	OrderWorker.Pending.TestA.SetCooker(func(ctx kitchen.IContext[DummyWorkerCookware], input int) (output int, err error) {
 		return input + 1, nil
@@ -578,7 +585,7 @@ func BenchmarkExec(b *testing.B) {
 	var res int
 	ctx := context.Background()
 	for i := 0; i < b.N; i++ {
-		if res, _ = OrderWorker.Pending.TestA.Exec(ctx, i); res != i+1 {
+		if res, _ = OrderWorker.Pending.TestA.Cook(ctx, i); res != i+1 {
 			b.Fail()
 		}
 	}
@@ -597,7 +604,7 @@ func BenchmarkExecWithTracerOff(b *testing.B) {
 		res    int
 		logger = logger.Level(zerolog.Disabled)
 	)
-	OrderWorkerWithTracer.Dependency().ITraceableCookware.(*kitchen.ZeroLogTraceableCookware).Logger = &logger
+	OrderWorkerWithTracer.Dependency().ITraceableCookware.(*kitchen.ZeroLogTraceableCookware[DummyWorkerCookwareWithTracer]).Logger = &logger
 	ctx := context.Background()
 	for i := 0; i < b.N; i++ {
 		if res, _ = OrderWorkerWithTracer.Pending.TestA.Exec(ctx, i); res != i+1 {

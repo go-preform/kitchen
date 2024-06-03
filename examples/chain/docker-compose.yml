@@ -14,79 +14,79 @@ services:
       - 80:80
       - 8080:8080
       - 10001:10001
-  kitchen-test-node2:
-    image: kitchen-test
-    hostname: kitchen-test-node2-1
-    deploy:
-      resources:
-        limits:
-          cpus: "4.0"
-    environment:
-      - HOST_ADDR=tcp://kitchen-test-node1-1
-      - HOST_PORT=10001
-      - LOCAL_ADDR=tcp://kitchen-test-node2-1
-      - LOCAL_PORT=10002
-      - HTTP_PORT=81
-    ports:
-      - 81:81
-      - 10002:10002
-    depends_on:
-      kitchen-test-node1:
-        condition: service_started
-  kitchen-test-node3:
-    image: kitchen-test
-    hostname: kitchen-test-node3-1
-    deploy:
-      resources:
-        limits:
-          cpus: "4.0"
-    environment:
-      - HOST_ADDR=tcp://kitchen-test-node1-1
-      - HOST_PORT=10001
-      - LOCAL_ADDR=tcp://kitchen-test-node3-1
-      - LOCAL_PORT=10003
-      - HTTP_PORT=82
-    ports:
-      - 82:82
-      - 10003:10003
-    depends_on:
-      kitchen-test-node1:
-        condition: service_started
-  kitchen-test-node4:
-    image: kitchen-test
-    hostname: kitchen-test-node4-1
-    deploy:
-      resources:
-        limits:
-          cpus: "4.0"
-    environment:
-      - HOST_ADDR=tcp://kitchen-test-node1-1
-      - HOST_PORT=10001
-      - LOCAL_ADDR=tcp://kitchen-test-node4-1
-      - LOCAL_PORT=10004
-      - HTTP_PORT=83
-    ports:
-      - 83:83
-      - 10004:10004
-    depends_on:
-      kitchen-test-node1:
-        condition: service_started
-  kitchen-test-node5:
-    image: kitchen-test
-    hostname: kitchen-test-node5-1
-    deploy:
-      resources:
-        limits:
-          cpus: "4.0"
-    environment:
-      - HOST_ADDR=tcp://kitchen-test-node1-1
-      - HOST_PORT=10001
-      - LOCAL_ADDR=tcp://kitchen-test-node5-1
-      - LOCAL_PORT=10005
-      - HTTP_PORT=84
-    ports:
-      - 84:84
-      - 10005:10005
-    depends_on:
-      kitchen-test-node1:
-        condition: service_started
+#  kitchen-test-node2:
+#    image: kitchen-test
+#    hostname: kitchen-test-node2-1
+#    deploy:
+#      resources:
+#        limits:
+#          cpus: "4.0"
+#    environment:
+#      - HOST_ADDR=tcp://kitchen-test-node1-1
+#      - HOST_PORT=10001
+#      - LOCAL_ADDR=tcp://kitchen-test-node2-1
+#      - LOCAL_PORT=10002
+#      - HTTP_PORT=81
+#    ports:
+#      - 81:81
+#      - 10002:10002
+#    depends_on:
+#      kitchen-test-node1:
+#        condition: service_started
+#  kitchen-test-node3:
+#    image: kitchen-test
+#    hostname: kitchen-test-node3-1
+#    deploy:
+#      resources:
+#        limits:
+#          cpus: "4.0"
+#    environment:
+#      - HOST_ADDR=tcp://kitchen-test-node1-1
+#      - HOST_PORT=10001
+#      - LOCAL_ADDR=tcp://kitchen-test-node3-1
+#      - LOCAL_PORT=10003
+#      - HTTP_PORT=82
+#    ports:
+#      - 82:82
+#      - 10003:10003
+#    depends_on:
+#      kitchen-test-node1:
+#        condition: service_started
+#  kitchen-test-node4:
+#    image: kitchen-test
+#    hostname: kitchen-test-node4-1
+#    deploy:
+#      resources:
+#        limits:
+#          cpus: "4.0"
+#    environment:
+#      - HOST_ADDR=tcp://kitchen-test-node1-1
+#      - HOST_PORT=10001
+#      - LOCAL_ADDR=tcp://kitchen-test-node4-1
+#      - LOCAL_PORT=10004
+#      - HTTP_PORT=83
+#    ports:
+#      - 83:83
+#      - 10004:10004
+#    depends_on:
+#      kitchen-test-node1:
+#        condition: service_started
+#  kitchen-test-node5:
+#    image: kitchen-test
+#    hostname: kitchen-test-node5-1
+#    deploy:
+#      resources:
+#        limits:
+#          cpus: "4.0"
+#    environment:
+#      - HOST_ADDR=tcp://kitchen-test-node1-1
+#      - HOST_PORT=10001
+#      - LOCAL_ADDR=tcp://kitchen-test-node5-1
+#      - LOCAL_PORT=10005
+#      - HTTP_PORT=84
+#    ports:
+#      - 84:84
+#      - 10005:10005
+#    depends_on:
+#      kitchen-test-node1:
+#        condition: service_started

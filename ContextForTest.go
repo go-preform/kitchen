@@ -47,15 +47,15 @@ func (c ContextForTest[D]) Cookware() D {
 	return c.DummyCookware
 }
 
-func (c ContextForTest[D]) traceableCookware() ITraceableCookware {
+func (c ContextForTest[D]) traceableCookware() ITraceableCookware[D] {
 	return nil
 }
 
-func (c ContextForTest[D]) startTrace(name string, id string, input any) ITraceSpan {
+func (c ContextForTest[D]) startTrace(id string, input any) iTraceSpan[D] {
 	return nil
 }
 
-func (c ContextForTest[D]) logSideEffect(instanceName string, toLog []any) (IContext[D], ITraceSpan) {
+func (c ContextForTest[D]) logSideEffect(instanceName string, toLog []any) (IContext[D], iTraceSpan[D]) {
 	return nil, nil
 }
 
@@ -67,7 +67,7 @@ func (c *ContextForTest[D]) SetWebBundle(body []byte, bundle IWebBundle) {
 	c.webBundle = bundle
 }
 
-func (c ContextForTest[D]) TraceSpan() ITraceSpan {
+func (c ContextForTest[D]) TraceSpan() iTraceSpan[D] {
 	return nil
 }
 
@@ -97,6 +97,6 @@ func (b PipelineContextForTest[D, M]) Stage() iPipelineStage[D, M] {
 	return b.DummySets[0].(iPipelineStage[D, M])
 }
 
-func (c *PipelineContextForTest[D, M]) logSideEffect(instanceName string, toLog []any) (IContext[D], ITraceSpan) {
+func (c *PipelineContextForTest[D, M]) logSideEffect(instanceName string, toLog []any) (IContext[D], iTraceSpan[D]) {
 	return c, nil
 }

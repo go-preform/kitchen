@@ -1,12 +1,13 @@
 package delivery
 
 import (
+	"math"
 	"sort"
 	"sync/atomic"
 )
 
 type ILoadBalancer interface {
-	GetNodeId() uint32
+	GetNodeId(skipNodeId ...uint32) uint32
 	UpdateHandlers(handlers []IHandler)
 }
 
@@ -22,13 +23,13 @@ var (
 type loadBalancer struct {
 	handlerIds []uint32
 	seek       *uint32
-	getId      func() uint32
+	getId      func(skipNodeId ...uint32) uint32
 	n          uint32
 	nodeId     uint32
 }
 
-func (l loadBalancer) GetNodeId() uint32 {
-	return l.getId()
+func (l loadBalancer) GetNodeId(skipNodeId ...uint32) uint32 {
+	return l.getId(skipNodeId...)
 }
 
 func (l *loadBalancer) UpdateHandlers(handlers []IHandler) {
@@ -40,14 +41,14 @@ func (l *loadBalancer) UpdateHandlers(handlers []IHandler) {
 	)
 	if n == 0 {
 		id = l.nodeId - 1
-		l.getId = func() uint32 {
+		l.getId = func(skipNodeId ...uint32) uint32 {
 			//LogErr("###########", nil, l.nodeId, id)
-			return id
+			return math.MaxUint32
 		}
 		return
 	} else if n == 1 {
 		id = handlers[0].id() - 1
-		l.getId = func() uint32 {
+		l.getId = func(skipNodeId ...uint32) uint32 {
 			//LogErr("!!!!!!!!!", nil, l.nodeId, id)
 			return id
 		}
@@ -67,8 +68,18 @@ func (l *loadBalancer) UpdateHandlers(handlers []IHandler) {
 		l.n = uint32(len(l.handlerIds))
 		atomic.StoreUint32(l.seek, 0)
 		//LogErr("++++++++++++++++++++++++", nil, l.nodeId, l.handlerIds)
-		l.getId = func() uint32 {
+		l.getId = func(skipNodeId ...uint32) uint32 {
 			//LogErr("-----------------------", nil, l.nodeId, l.handlerIds, *l.seek, l.n)
+			if len(skipNodeId) != 0 {
+				for _, id = range l.handlerIds {
+					for _, v := range skipNodeId {
+						if id != v {
+							return id
+						}
+					}
+				}
+				return math.MaxUint32
+			}
 			return l.handlerIds[atomic.AddUint32(l.seek, 1)%l.n]
 		}
 	}
@@ -80,7 +91,7 @@ func newLoadBalancer(nodeId uint32) ILoadBalancer {
 	return &loadBalancer{
 		seek:   new(uint32),
 		nodeId: nodeId,
-		getId: func() uint32 {
+		getId: func(skipNodeId ...uint32) uint32 {
 			return id
 		},
 	}

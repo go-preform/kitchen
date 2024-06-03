@@ -12,10 +12,10 @@ type Context[D ICookware] struct {
 	session      []IDishServe
 	sideEffects  []IInstance
 	cookware     D
-	traceableDep ITraceableCookware
+	traceableDep ITraceableCookware[D]
 	inherited    IContextWithSession
 	node         IDishServe
-	tracerSpan   ITraceSpan
+	tracerSpan   iTraceSpan[D]
 	webContext   *webContext
 }
 
@@ -79,7 +79,7 @@ func (c Context[D]) Cookware() D {
 	return c.cookware
 }
 
-func (c Context[D]) traceableCookware() ITraceableCookware {
+func (c Context[D]) traceableCookware() ITraceableCookware[D] {
 	return c.traceableDep
 }
 
@@ -94,10 +94,14 @@ func (c Context[D]) GetCtx() context.Context {
 	return c.Context
 }
 
-func (c *Context[D]) startTrace(name string, id string, input any) ITraceSpan {
+func (c *Context[D]) startTrace(id string, input any) iTraceSpan[D] {
 	c.Context = context.WithValue(c.Context, "kitchenDishId", id)
 	if c.traceableDep != nil {
-		c.Context, c.tracerSpan = c.traceableDep.StartTrace(c.Context, id, name, input)
+		var ctx context.Context
+		ctx, c.tracerSpan = c.traceableDep.StartTrace(c, id, input)
+		if ctx != c.Context {
+			c.Context = ctx
+		}
 
 		if c.webContext != nil {
 			body, err := c.webContext.bundle.Body()
@@ -110,13 +114,13 @@ func (c *Context[D]) startTrace(name string, id string, input any) ITraceSpan {
 	return nil
 }
 
-func (c *Context[D]) logSideEffect(instanceName string, toLog []any) (IContext[D], ITraceSpan) {
+func (c *Context[D]) logSideEffect(instanceName string, toLog []any) (IContext[D], iTraceSpan[D]) {
 	if c.tracerSpan != nil {
 		var (
 			cc  = *c
 			ccc = &cc
 		)
-		ccc.Context, ccc.tracerSpan = ccc.tracerSpan.logSideEffect(c.Context, instanceName, toLog)
+		ccc.Context, ccc.tracerSpan = ccc.tracerSpan.logSideEffect(c, instanceName, toLog)
 		return ccc, ccc.tracerSpan
 	}
 	return c, nil
@@ -137,7 +141,7 @@ func (c *Context[D]) Session(nodes ...IDishServe) []IDishServe {
 	return c.session
 }
 
-func (c *Context[D]) TraceSpan() ITraceSpan {
+func (c *Context[D]) TraceSpan() iTraceSpan[D] {
 	return c.tracerSpan
 }
 
@@ -170,7 +174,7 @@ func (b PipelineContext[D, M]) Stage() iPipelineStage[D, M] {
 	return b.sets[0].(iPipelineStage[D, M])
 }
 
-func (c *PipelineContext[D, M]) logSideEffect(instanceName string, toLog []any) (IContext[D], ITraceSpan) {
+func (c *PipelineContext[D, M]) logSideEffect(instanceName string, toLog []any) (IContext[D], iTraceSpan[D]) {
 	c.Context.logSideEffect(instanceName, toLog)
 	return c, nil
 }

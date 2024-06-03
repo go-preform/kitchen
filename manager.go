@@ -45,6 +45,12 @@ func (m *Manager) SelectServeMenus(menuNamesNilIsAll ...string) IManager {
 
 func (m *Manager) DisableMenu(name string) IManager {
 	m.lock.Lock()
+	if m.serveMenuNames == nil {
+		m.serveMenuNames = make([]string, len(m.menuById))
+		for i, menu := range m.menuById {
+			m.serveMenuNames[i] = menu.Name()
+		}
+	}
 	for i, n := range m.serveMenuNames {
 		if n == name {
 			m.serveMenuNames = append(m.serveMenuNames[:i], m.serveMenuNames[i+1:]...)
@@ -88,13 +94,13 @@ func (m *Manager) getOrderHandlers() []func(context.Context, *delivery.Order) {
 		handlers = make([]func(context.Context, *delivery.Order), len(m.menuById))
 	)
 	m.lock.Lock()
-	if len(m.serveMenuNames) > 0 {
-		for _, menuName := range m.serveMenuNames {
-			handlers[m.menus[menuName].ID()] = m.menuById[m.menus[menuName].ID()].orderDish
-		}
-	} else {
+	if m.serveMenuNames == nil {
 		for _, menu := range m.menuById {
 			handlers[menu.ID()] = menu.orderDish
+		}
+	} else {
+		for _, menuName := range m.serveMenuNames {
+			handlers[m.menus[menuName].ID()] = m.menuById[m.menus[menuName].ID()].orderDish
 		}
 	}
 	m.lock.Unlock()

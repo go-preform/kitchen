@@ -10,6 +10,7 @@ import (
 	"github.com/mackerelio/go-osstat/cpu"
 	"github.com/pbnjay/memory"
 	"google.golang.org/protobuf/proto"
+	"math"
 	"runtime"
 	"sort"
 	"strings"
@@ -330,6 +331,20 @@ func (s *server) listenRequest() error {
 }
 
 func (s *server) SetOrderHandlerPerMenu(f []func(context.Context, *Order)) {
+	if s.handleCtxCancel != nil {
+		s.handleCtxCancel()
+		defer func() {
+			go s.handleOrders()
+		}()
+	}
+	if len(f) == 0 {
+		f = make([]func(context.Context, *Order), len(s.orderListener))
+	}
+	for i := range s.orderListener {
+		if f[i] == nil && s.orderListener[i] != nil {
+			LogInfo("disable menu", s.nodeId, i)
+		}
+	}
 	s.orderListener = f
 	if s.orderServerByMenu == nil {
 		s.orderServerByMenu = make([]ILoadBalancer, len(f))
@@ -410,11 +425,13 @@ var (
 func (s *server) handleOrders() {
 	var (
 		statForSeconds = make([]*uint32, 60)
+		menuServing    = make([]bool, len(s.orderListener))
 	)
 	for i := range statForSeconds {
 		statForSeconds[i] = new(uint32)
 	}
 	s.callStatForSecond = statForSeconds[0]
+	s.handleCtx, s.handleCtxCancel = context.WithCancel(s.ctx)
 	go func() {
 		var (
 			ticker = time.NewTicker(time.Second)
@@ -428,10 +445,17 @@ func (s *server) handleOrders() {
 				s.status.ProcessedInMinute -= atomic.SwapUint32(statForSeconds[i], 0)
 				s.status.ProcessedInMinute += atomic.LoadUint32(s.callStatForSecond)
 				s.callStatForSecond = statForSeconds[i]
+			case <-s.handleCtx.Done():
+				ticker.Stop()
+				return
 			}
 		}
 	}()
-	s.handleCtx, s.handleCtxCancel = context.WithCancel(s.ctx)
+	for i := range s.orderListener {
+		if s.orderListener[i] != nil {
+			menuServing[i] = true
+		}
+	}
 	for i := 0; i < DefaultOrderHandleConcurrentLimit; i++ {
 		go func() {
 			var (
@@ -440,6 +464,8 @@ func (s *server) handleOrders() {
 			)
 			for {
 				select {
+				case <-s.handleCtx.Done():
+					return
 				case order, ok = <-s.orderCh:
 					if !ok {
 						return
@@ -447,16 +473,20 @@ func (s *server) handleOrders() {
 					if order.Ctx.Err() != nil {
 						continue
 					}
-					order.Ack()
-					//LogErr("handle order-------------", nil, s.nodeId, order.MenuId)
-					atomic.AddUint32(s.callStatForSecond, 1)
-					//atomic.AddUint32(&traceRing[order.Id*10+uint64(order.NodeId)], 8)
-					s.orderListener[order.MenuId](order.Ctx, order)
-					//atomic.AddUint32(&traceRing[order.Id*10+uint64(order.NodeId)], 16)
-					atomic.AddInt32(s.loadingPtr, -1)
-					orderWrapPool.Put(order)
-				case <-s.handleCtx.Done():
-					return
+					if menuServing[order.MenuId] {
+						order.Ack()
+						//LogErr("handle order-------------", nil, s.nodeId, order.MenuId)
+						atomic.AddUint32(s.callStatForSecond, 1)
+						//atomic.AddUint32(&traceRing[order.Id*10+uint64(order.NodeId)], 8)
+						s.orderListener[order.MenuId](order.Ctx, order)
+						//atomic.AddUint32(&traceRing[order.Id*10+uint64(order.NodeId)], 16)
+						atomic.AddInt32(s.loadingPtr, -1)
+						orderWrapPool.Put(order)
+					} else {
+						order.Response(nil, ErrMenuNotServing)
+						orderWrapPool.Put(order)
+					}
+
 				}
 			}
 		}()
@@ -524,7 +554,9 @@ func (s *server) pushStatusLoop() {
 			}
 			beforeStat = stat
 		} else {
-			LogErr("get cpu stat", err)
+			if !strings.Contains(err.Error(), "not implemented") {
+				LogErr("get cpu stat", err)
+			}
 		}
 	}
 	for {
@@ -651,9 +683,12 @@ func (s *server) checkNodes(chainStatus *deliveryProto.ChainStatus, n *node) {
 	}
 	var (
 		l            = uint32(len(s.peers))
-		menuHandlers = make([][]IHandler, len(s.orderListener))
+		menuHandlers [][]IHandler
 		menuId       uint32
 	)
+	if ll := len(s.orderListener); ll > 0 {
+		menuHandlers = make([][]IHandler, ll)
+	}
 	if l != uint32(len(chainStatus.NodeStatus)) {
 		s.Lock()
 		for i := l; i < uint32(len(chainStatus.NodeStatus)); i++ {
@@ -694,11 +729,12 @@ func (s *server) checkNodes(chainStatus *deliveryProto.ChainStatus, n *node) {
 			if nodeStatus.NodeId != s.nodeId {
 				s.peers[nodeId].status = nodeStatus
 			}
-			if len(s.orderListener) >= len(nodeStatus.ServeMenuIds) {
-				LogDebug("checkNodes ServeMenuIds", s.nodeId, nodeStatus.NodeId, nodeStatus.ServeMenuIds)
-				for _, menuId = range nodeStatus.ServeMenuIds {
-					menuHandlers[menuId] = append(menuHandlers[menuId], s.peers[nodeId])
-				}
+			if len(menuHandlers) < len(nodeStatus.ServeMenuIds) {
+				menuHandlers = append(menuHandlers, nil)
+			}
+			LogDebug("checkNodes ServeMenuIds", s.nodeId, nodeStatus.NodeId, nodeStatus.ServeMenuIds)
+			for _, menuId = range nodeStatus.ServeMenuIds {
+				menuHandlers[menuId] = append(menuHandlers[menuId], s.peers[nodeId])
 			}
 		}
 		if len(chainStatus.LeaderRank) >= len(s.leaderRank) {
@@ -715,12 +751,21 @@ func (s *server) checkNodes(chainStatus *deliveryProto.ChainStatus, n *node) {
 			}
 		}
 	}
-
-	for menuId, handlers := range menuHandlers {
-		if s.orderServerByMenu[menuId] == nil && s.nodeId != 0 {
-			s.orderServerByMenu[menuId] = NewLoadBalancer(s.nodeId)
+	if s.orderServerByMenu == nil {
+		s.orderServerByMenu = make([]ILoadBalancer, len(menuHandlers))
+	}
+	if len(menuHandlers) == 0 {
+		for _, handler := range s.orderServerByMenu {
+			handler.UpdateHandlers(nil)
 		}
-		s.orderServerByMenu[menuId].UpdateHandlers(handlers)
+	} else {
+
+		for menuId, handlers := range menuHandlers {
+			if s.orderServerByMenu[menuId] == nil && s.nodeId != 0 {
+				s.orderServerByMenu[menuId] = NewLoadBalancer(s.nodeId)
+			}
+			s.orderServerByMenu[menuId].UpdateHandlers(handlers)
+		}
 	}
 	//LogErr("checkNodes", nil, s.nodeId, s.orderServerByMenu)
 }
@@ -833,15 +878,25 @@ var (
 	ErrRunInLocal = errors.New("run in local")
 )
 
-func (s *server) Order(menuId, dishId uint16) (func(ctx context.Context, input []byte) ([]byte, error), error) {
-	nodeId := s.orderServerByMenu[menuId].GetNodeId()
+func (s *server) Order(menuId, dishId uint16, skipNodeId ...uint32) (func(ctx context.Context, input []byte) ([]byte, error), error) {
+	nodeId := s.orderServerByMenu[menuId].GetNodeId(skipNodeId...)
 	//LogErr("Order!!!!!!!!!!!!!!", nil, s.nodeId, menuId, nodeId)
 	if nodeId == s.nodeId-1 {
 		atomic.AddUint32(s.callStatForSecond, 1)
 		return nil, ErrRunInLocal
+	} else if nodeId == math.MaxUint32 {
+		return nil, ErrMenuNotServing
 	}
 	return func(ctx context.Context, input []byte) ([]byte, error) {
-		return s.peers[nodeId].OrderRequestAsClient(ctx, menuId, dishId, input)
+		output, err := s.peers[nodeId].OrderRequestAsClient(ctx, menuId, dishId, input)
+		if errors.Is(err, ErrMenuNotServing) {
+			fn, err := s.Order(menuId, dishId, append(skipNodeId, nodeId)...)
+			if err != nil {
+				return nil, err
+			}
+			return fn(ctx, input)
+		}
+		return output, err
 	}, nil
 }
 
