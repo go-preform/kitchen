@@ -29,6 +29,7 @@ type Dish[D ICookware, I any, O any] struct {
 	marshalOutput    iMarshaller[O]
 	id               uint32
 	panicRecover     bool
+	asyncCooker      func(ctx IContext[D], input I, callback func(output O, err error))
 	preforkCh        chan asyncTask[D, I, O]
 	preforkCtxCancel context.CancelFunc
 	lock             sync.Mutex
@@ -57,6 +58,7 @@ func (a *Dish[D, I, O]) init(parent iCookbook[D], action iDish[D], name string, 
 	a.name = name
 	a.fieldTags = tags
 	a.instance = action
+	a.asyncCooker = a.goCooker
 	if set, ok := any(parent).(iSet[D]); ok {
 		var setNames []string
 		a.sets = set.tree()
@@ -314,14 +316,20 @@ func (a *Dish[D, I, O]) ExecAsync(ctx context.Context, input I, optionalCallback
 }
 
 func (a *Dish[D, I, O]) CookAsync(ctx context.Context, input I, optionalCallback ...func(O, error)) {
-	if a.preforkCh == nil {
-		go a.Cook(ctx, input)
-	}
 	var cb func(O, error)
 	if len(optionalCallback) != 0 {
 		cb = optionalCallback[0]
 	}
-	a.preforkCh <- asyncTask[D, I, O]{ctx: a.newCtx(ctx), input: input, callback: cb}
+	a.asyncCooker(a.newCtx(ctx), input, cb)
+}
+
+func (a *Dish[D, I, O]) goCooker(ctx IContext[D], input I, callback func(O, error)) {
+	go func() {
+		output, err := a.doCook(a.rawCooker, ctx, input, nil)
+		if callback != nil {
+			callback(output, err)
+		}
+	}()
 }
 
 func (a *Dish[D, I, O]) doCook(cooker DishCooker[D, I, O], ctx IContext[D], input I, followUp func(O, error) error) (output O, err error) {
@@ -460,7 +468,15 @@ func (a *Dish[D, I, O]) prefork(ch chan asyncTask[D, any, any]) (onCook func(ctx
 		a.lock.Lock()
 		close(ch)
 		a.rawCooker = rawCooker
+		a.asyncCooker = a.goCooker
 		a.lock.Unlock()
+	}
+	a.asyncCooker = func(ctx IContext[D], input I, callback func(O, error)) {
+		ch <- asyncTask[D, any, any]{ctx: ctx, input: any(input), callback: func(o any, e error) {
+			if callback != nil {
+				callback(o.(O), e)
+			}
+		}}
 	}
 	a.rawCooker = func(ctx IContext[D], input I) (output O, err error) {
 		var (
@@ -511,6 +527,7 @@ func (a *Dish[D, I, O]) Prefork(ctx context.Context, concurrent, buffer int) {
 							a.lock.TryLock()
 							a.preforkCh = nil
 							a.cooker = rawCooker
+							a.asyncCooker = a.goCooker
 							a.lock.Unlock()
 						}
 						return
@@ -527,6 +544,9 @@ func (a *Dish[D, I, O]) Prefork(ctx context.Context, concurrent, buffer int) {
 				}
 			}
 		}(i)
+	}
+	a.asyncCooker = func(ctx IContext[D], input I, callback func(O, error)) {
+		a.preforkCh <- asyncTask[D, I, O]{ctx: ctx, input: input, callback: callback}
 	}
 	a.rawCooker = func(ctx IContext[D], input I) (output O, err error) {
 		var (
@@ -545,6 +565,8 @@ func (a *Dish[D, I, O]) Prefork(ctx context.Context, concurrent, buffer int) {
 	return
 }
 
+// if you just want to limit the concurrent number, ConcurrentLimit is always faster
+// prefork is for regulate async goroutines
 func GroupPrefork[D ICookware](ctx context.Context, concurrent, buffer int, dishes ...iDish[D]) {
 	if concurrent == 0 {
 		return
@@ -581,19 +603,24 @@ func GroupPrefork[D ICookware](ctx context.Context, concurrent, buffer int, dish
 				chosen, value, ok = reflect.Select(cases)
 				if chosen == l {
 					if i == 0 {
+						lock.Lock()
 						for j := 0; j < l; j++ {
 							if restores[j] != nil {
 								restores[j]()
+								restores[j] = nil
 								close(channels[j])
 							}
 						}
+						lock.Unlock()
 					}
 				} else {
 					if !ok {
 						lock.Lock()
 						handles[chosen] = nil
-						restores[chosen]()
-						restores[chosen] = nil
+						if restores[chosen] != nil {
+							restores[chosen]()
+							restores[chosen] = nil
+						}
 						closed++
 						lock.Unlock()
 						if closed == l {
