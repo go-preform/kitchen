@@ -16,20 +16,22 @@ import (
 
 type Dish[D ICookware, I any, O any] struct {
 	cookbook[D, I, O]
-	sets          []iSet[D]
-	_menu         iMenu[D]
-	name          string
-	cooker        DishCooker[D, I, O]
-	rawCooker     DishCooker[D, I, O]
-	newInput      func() I
-	asyncChan     chan asyncTask[D, I, O]
-	path          *string
-	operationId   string
-	fieldTags     reflect.StructTag
-	marshalInput  iMarshaller[I]
-	marshalOutput iMarshaller[O]
-	id            uint32
-	panicRecover  bool
+	sets             []iSet[D]
+	_menu            iMenu[D]
+	name             string
+	cooker           DishCooker[D, I, O]
+	rawCooker        DishCooker[D, I, O]
+	newInput         func() I
+	path             *string
+	operationId      string
+	fieldTags        reflect.StructTag
+	marshalInput     iMarshaller[I]
+	marshalOutput    iMarshaller[O]
+	id               uint32
+	panicRecover     bool
+	preforkCh        chan asyncTask[D, I, O]
+	preforkCtxCancel context.CancelFunc
+	lock             sync.Mutex
 }
 
 type asyncTask[D ICookware, I, O any] struct {
@@ -210,59 +212,6 @@ func (a Dish[D, I, O]) Sets() []ISet {
 	return res
 }
 
-func (a *Dish[D, I, O]) SetAsyncCooker(ctx context.Context, buffSize, threadSize int, cooker DishCooker[D, I, O]) {
-	if a.asyncChan != nil {
-		close(a.asyncChan)
-		a.asyncChan = nil
-	}
-	if cooker != nil && threadSize > 0 && buffSize > 0 {
-		a.asyncChan = make(chan asyncTask[D, I, O], buffSize)
-		for i := 0; i < threadSize; i++ {
-			go func() {
-				var (
-					err    error
-					node   IDishServe
-					t      asyncTask[D, I, O]
-					ok     bool
-					ch     = a.asyncChan
-					output O
-				)
-				if a.panicRecover {
-					defer func() {
-						if rec := recover(); rec != nil {
-							if a.isTraceable && t.ctx != nil && t.ctx.TraceSpan() != nil {
-								t.ctx.TraceSpan().AddEvent("panic", map[string]any{"panic": rec, "stack": string(debug.Stack())})
-							} else {
-								fmt.Printf("panicRecover from panic: \n%v\n%s", rec, string(debug.Stack()))
-							}
-						}
-					}()
-				}
-				for {
-					select {
-					case <-ctx.Done():
-						close(ch)
-						a.asyncChan = nil
-					case t, ok = <-ch:
-						if !ok {
-							return
-						}
-						node = a.start(t.ctx, t.input, false)
-						output, err = cooker(t.ctx, t.input)
-						a.emitAfterCook(t.ctx, t.input, output, err)
-						node.finish(nil, err)
-						if t.callback != nil {
-							t.callback(output, err)
-						}
-					}
-				}
-			}()
-		}
-	}
-}
-func (a *Dish[D, I, O]) SetAsyncExecer(ctx context.Context, buffSize, threadSize int, cooker DishCooker[D, I, O]) {
-	a.SetAsyncCooker(ctx, buffSize, threadSize, cooker)
-}
 func (a *Dish[D, I, O]) SetExecer(cooker DishCooker[D, I, O]) *Dish[D, I, O] {
 	return a.SetCooker(cooker)
 }
@@ -274,10 +223,6 @@ func (a *Dish[D, I, O]) refreshCooker() {
 }
 
 func (a *Dish[D, I, O]) SetCooker(cooker DishCooker[D, I, O]) *Dish[D, I, O] {
-	if a.asyncChan != nil {
-		close(a.asyncChan)
-		a.asyncChan = nil
-	}
 	a.rawCooker = cooker
 	if mgr := a._menu.Manager(); mgr != nil {
 		a.cooker = func(ctx IContext[D], input I) (output O, err error) {
@@ -333,21 +278,6 @@ func (a Dish[D, I, O]) Dependency() D {
 var ErrCookerNotSet = errors.New("cooker not set")
 
 func (a *Dish[D, I, O]) Cook(ctx context.Context, input I) (output O, err error) {
-	if a.asyncChan != nil {
-		l := &sync.Mutex{}
-		l.Lock()
-		err = a.CookAsync(ctx, input, func(o O, e error) {
-			output = o
-			err = e
-			l.Unlock()
-		})
-		if err != nil {
-			l.Unlock()
-			return
-		}
-		l.Lock()
-		return
-	}
 	return a.cook(a.newCtx(ctx), input, nil)
 }
 
@@ -379,20 +309,19 @@ func (a *Dish[D, I, O]) Exec(ctx context.Context, input I) (output O, err error)
 }
 
 // deprecated use CookAsync
-func (a *Dish[D, I, O]) ExecAsync(ctx context.Context, input I, optionalCallback ...func(O, error)) error {
-	return a.CookAsync(ctx, input, optionalCallback...)
+func (a *Dish[D, I, O]) ExecAsync(ctx context.Context, input I, optionalCallback ...func(O, error)) {
+	a.CookAsync(ctx, input, optionalCallback...)
 }
 
-func (a *Dish[D, I, O]) CookAsync(ctx context.Context, input I, optionalCallback ...func(O, error)) error {
-	if a.asyncChan == nil {
-		return errors.New("async cooker not set")
+func (a *Dish[D, I, O]) CookAsync(ctx context.Context, input I, optionalCallback ...func(O, error)) {
+	if a.preforkCh == nil {
+		go a.Cook(ctx, input)
 	}
 	var cb func(O, error)
 	if len(optionalCallback) != 0 {
 		cb = optionalCallback[0]
 	}
-	a.asyncChan <- asyncTask[D, I, O]{ctx: a.newCtx(ctx), input: input, callback: cb}
-	return nil
+	a.preforkCh <- asyncTask[D, I, O]{ctx: a.newCtx(ctx), input: input, callback: cb}
 }
 
 func (a *Dish[D, I, O]) doCook(cooker DishCooker[D, I, O], ctx IContext[D], input I, followUp func(O, error) error) (output O, err error) {
@@ -518,4 +447,163 @@ func (node *dishServing) finish(output any, err error) {
 
 func (node *dishServing) Record() (IDish, bool, any, any, error) {
 	return node.Action, node.Finish, node.Input, node.Output, node.Error
+}
+
+func (a *Dish[D, I, O]) prefork(ch chan asyncTask[D, any, any]) (onCook func(ctx IContext[D], input any, callback func(any, error)), restore func()) {
+	if a.preforkCtxCancel != nil {
+		a.lock.Lock()
+		a.preforkCtxCancel()
+	}
+	a.lock.Lock()
+	rawCooker := a.rawCooker
+	a.preforkCtxCancel = func() {
+		a.lock.Lock()
+		close(ch)
+		a.rawCooker = rawCooker
+		a.lock.Unlock()
+	}
+	a.rawCooker = func(ctx IContext[D], input I) (output O, err error) {
+		var (
+			callbackLock = &sync.Mutex{}
+		)
+		callbackLock.Lock()
+		ch <- asyncTask[D, any, any]{ctx: ctx, input: any(input), callback: func(o any, e error) {
+			output = o.(O)
+			err = e
+			callbackLock.Unlock()
+		}}
+		callbackLock.Lock()
+		return
+	}
+	a.lock.Unlock()
+	return func(ctx IContext[D], input any, callback func(any, error)) {
+		output, err := a.doCook(rawCooker, ctx, input.(I), nil)
+		if callback != nil {
+			callback(output, err)
+		}
+	}, a.preforkCtxCancel
+}
+
+func (a *Dish[D, I, O]) Prefork(ctx context.Context, concurrent, buffer int) {
+	if a.preforkCtxCancel != nil {
+		a.lock.Lock()
+		a.preforkCtxCancel()
+	}
+	a.lock.Lock()
+	if concurrent == 0 {
+		return
+	}
+	rawCooker := a.rawCooker
+	a.preforkCh = make(chan asyncTask[D, I, O], buffer)
+	ctx, a.preforkCtxCancel = context.WithCancel(ctx)
+	for i := 0; i < concurrent; i++ {
+		go func(i int) {
+			var (
+				output O
+				err    error
+				ended  bool
+			)
+			for {
+				select {
+				case t, ok := <-a.preforkCh:
+					if !ok {
+						if i == 0 {
+							a.lock.TryLock()
+							a.preforkCh = nil
+							a.cooker = rawCooker
+							a.lock.Unlock()
+						}
+						return
+					}
+					output, err = a.doCook(rawCooker, t.ctx, t.input, nil)
+					if t.callback != nil {
+						t.callback(output, err)
+					}
+				case <-ctx.Done():
+					if i == 0 && !ended {
+						ended = true
+						close(a.preforkCh)
+					}
+				}
+			}
+		}(i)
+	}
+	a.rawCooker = func(ctx IContext[D], input I) (output O, err error) {
+		var (
+			callbackLock = &sync.Mutex{}
+		)
+		callbackLock.Lock()
+		a.preforkCh <- asyncTask[D, I, O]{ctx: ctx, input: input, callback: func(o O, e error) {
+			output = o
+			err = e
+			callbackLock.Unlock()
+		}}
+		callbackLock.Lock()
+		return
+	}
+	a.lock.Unlock()
+	return
+}
+
+func GroupPrefork[D ICookware](ctx context.Context, concurrent, buffer int, dishes ...iDish[D]) {
+	if concurrent == 0 {
+		return
+	}
+	var (
+		l        = len(dishes)
+		channels = make([]chan asyncTask[D, any, any], l)
+		handles  = make([]func(ctx IContext[D], input any, callback func(any, error)), l)
+		restores = make([]func(), l)
+		cases    = make([]reflect.SelectCase, l+1)
+		closed   = 0
+		lock     sync.Mutex
+	)
+	for i, d := range dishes {
+		channels[i] = make(chan asyncTask[D, any, any], buffer)
+		cases[i] = reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(channels[i]),
+		}
+		handles[i], restores[i] = d.prefork(channels[i])
+	}
+	cases[l] = reflect.SelectCase{
+		Dir:  reflect.SelectRecv,
+		Chan: reflect.ValueOf(ctx.Done()),
+	}
+	for i := 0; i < concurrent; i++ {
+		go func(i int) {
+			var (
+				chosen int
+				value  reflect.Value
+				ok     bool
+			)
+			for {
+				chosen, value, ok = reflect.Select(cases)
+				if chosen == l {
+					if i == 0 {
+						for j := 0; j < l; j++ {
+							if restores[j] != nil {
+								restores[j]()
+								close(channels[j])
+							}
+						}
+					}
+				} else {
+					if !ok {
+						lock.Lock()
+						handles[chosen] = nil
+						restores[chosen]()
+						restores[chosen] = nil
+						closed++
+						lock.Unlock()
+						if closed == l {
+							return
+						}
+					}
+					t := value.Interface().(asyncTask[D, any, any])
+					handles[chosen](t.ctx, t.input, t.callback)
+				}
+			}
+		}(i)
+	}
 }

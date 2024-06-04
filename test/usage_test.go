@@ -107,10 +107,13 @@ func TestInit(t *testing.T) {
 		//ctx.Bundle().Sql.Query("select 1")
 		return input + 1, nil
 	})
-	OrderWorker.Pending.TestAsync.SetAsyncCooker(context.Background(), 100, 1, func(ctx kitchen.IContext[DummyWorkerCookwareWithTracer], input int) (output int, err error) {
-		fmt.Println(123)
+	cnt := 0
+	OrderWorker.Pending.TestAsync.SetCooker(func(ctx kitchen.IContext[DummyWorkerCookwareWithTracer], input int) (output int, err error) {
+		cnt++
+		time.Sleep(time.Millisecond * 100)
 		return input + 999, nil
 	})
+	OrderWorker.Pending.TestAsync.Prefork(context.Background(), 1, 100)
 
 	//should emit to MQ broadcast to whole cluster later
 	OrderWorker.Pending.TestA.AfterCook(func(ctx kitchen.IContext[DummyWorkerCookwareWithTracer], input int, output int, err error) {
@@ -140,16 +143,27 @@ func TestInit(t *testing.T) {
 	assert.Equal(t, input+3, res)
 	assert.Equal(t, []int{3, 1, 2, 3, 2, 3}, callStack) //triggered all again except order.Exist.TestA
 
-	err = OrderWorker.Pending.TestAsync.CookAsync(context.Background(), 1, func(i int, err error) {
+	OrderWorker.Pending.TestAsync.CookAsync(context.Background(), 1, func(i int, err error) {
 		assert.Equal(t, 1000, i)
 		assert.Nil(t, err)
 	}) //run as async
-	assert.Nil(t, err)
+	OrderWorker.Pending.TestAsync.CookAsync(context.Background(), 1) //run as async should be blocking because of Prefork
+	time.Sleep(time.Millisecond * 50)
+	assert.Equal(t, 1, cnt)
+	time.Sleep(time.Millisecond * 100)
+	assert.Equal(t, 2, cnt)
 	res, err = OrderWorker.Pending.TestAsync.Cook(context.Background(), 1) //run as sync
 	assert.Nil(t, err)
 	assert.Equal(t, 1000, res)
 
-	assert.Equal(t, uint64(5), *counterTracer.Menus[0].Ok)
+	assert.Equal(t, uint64(6), *counterTracer.Menus[0].Ok)
+
+	kitchen.GroupPrefork(context.Background(), 1, 100, &OrderWorker.Pending.TestAsync, &OrderWorker.Pending.TestA)
+
+	t1 := time.Now()
+	OrderWorker.Pending.TestAsync.Cook(context.Background(), 1)
+	OrderWorker.Pending.TestA.Cook(context.Background(), 1)
+	assert.True(t, time.Since(t1) > time.Millisecond*100) //blocking by TestAsync Prefork
 
 }
 

@@ -131,8 +131,9 @@ type (
 	iDish[D ICookware] interface {
 		IDish
 		iCookbook[D]
-		init(iCookbook[D], iDish[D], string, reflect.StructTag)
+		init(parent iCookbook[D], action iDish[D], name string, tags reflect.StructTag)
 		refreshCooker()
+		prefork(ch chan asyncTask[D, any, any]) (onCook func(ctx IContext[D], input any, callback func(any, error)), restore func())
 	}
 	IContextWithSession interface {
 		context.Context
