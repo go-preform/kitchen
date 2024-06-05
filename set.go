@@ -1,16 +1,10 @@
 package kitchen
 
 import (
-	"reflect"
 	"sync"
 )
 
-var (
-	typeOfMenu           = reflect.TypeOf((*IMenu)(nil)).Elem()
-	typeOfDish           = reflect.TypeOf((*IDish)(nil)).Elem()
-	typeOfPipelineAction = reflect.TypeOf((*IPipelineAction)(nil)).Elem()
-)
-
+// SetBase is a struct for supporting ISet, can treat as a sub menu.
 type SetBase[D ICookware] struct {
 	cookbook[D, any, any]
 	_menu     iMenu[D]

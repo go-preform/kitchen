@@ -9,13 +9,16 @@ import (
 )
 
 type (
+	// IWebParsableInput is an interface for cooker input enable parsing web request to input
 	IWebParsableInput interface {
 		ParseRequestToInput(kitchen.IWebBundle) (raw []byte, err error)
 	}
+	// IWebWrapper is an interface for web router wrapper
 	IWebWrapper interface {
 		FormatUrlParam(name string) string
 		AddMenuToRouter(instance kitchen.IInstance, prefix ...string)
 	}
+	// IWebCookware is an interface for cookware that can be parsed from web request
 	IWebCookware interface {
 		kitchen.ICookware
 		RequestParser(action kitchen.IDish, bundle kitchen.IWebBundle) (IWebCookware, error) //parse user, permission

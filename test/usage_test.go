@@ -158,7 +158,7 @@ func TestInit(t *testing.T) {
 
 	assert.Equal(t, uint64(6), *counterTracer.Menus[0].Ok)
 
-	kitchen.GroupPrefork(context.Background(), 1, 100, &OrderWorker.Pending.TestAsync, &OrderWorker.Pending.TestA)
+	kitchen.GroupPrefork(context.Background(), 1, 100, nil, &OrderWorker.Pending.TestAsync, &OrderWorker.Pending.TestA)
 
 	t1 := time.Now()
 	OrderWorker.Pending.TestAsync.Cook(context.Background(), 1)
@@ -370,7 +370,7 @@ func TestWeb(t *testing.T) {
 		return i.Cookware().UserId, nil
 	})
 	webTest.Test.Manual.SetCooker(func(i kitchen.IContext[*DummyWebCookware], input any) (output any, err error) {
-		i.FromWeb().Response().Header().Set("Location", "https://google.com")
+		i.WebBundle().Response().Header().Set("Location", "https://google.com")
 		return nil, nil
 	})
 

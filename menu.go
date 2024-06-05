@@ -1,3 +1,4 @@
+// Package kitchen A golang framework for building progressive backend services.
 package kitchen
 
 import (
@@ -8,10 +9,7 @@ import (
 	"sync"
 )
 
-var (
-	typeOfISet = reflect.TypeOf((*ISet)(nil)).Elem()
-)
-
+// MenuBase is a struct for supporting IMenu, should embed to all menus.
 type MenuBase[WPtr iMenu[D], D ICookware] struct {
 	cookbook[D, any, any]
 	name            string
@@ -19,12 +17,12 @@ type MenuBase[WPtr iMenu[D], D ICookware] struct {
 	cookwareFactory ICookwareFactory[D]
 	dishes          []iDish[D]
 	dishCnt         uint32
-	path            *string
 	manager         IManager
 	idUnderManager  uint32
 	recycleCookware func(any)
 }
 
+// InitMenu initializes a menu.
 func InitMenu[W iMenu[D], D ICookware](menuPtr W, bundle any) W {
 	menuPtr.init(menuPtr, bundle)
 	return menuPtr
@@ -78,6 +76,7 @@ func (r MenuBase[W, D]) Cookware() ICookware {
 	return r.menuCookware
 }
 
+// Manager returns the manager of the menu, maybe nil if not associated with a manager.
 func (b *MenuBase[W, D]) Manager() IManager {
 	return b.manager
 }
@@ -92,11 +91,6 @@ func (b *MenuBase[W, D]) setManager(m IManager, id uint32) {
 	for _, d := range b.dishes {
 		d.refreshCooker()
 	}
-}
-
-func (b *MenuBase[W, D]) OverridePath(path string) *MenuBase[W, D] {
-	b.path = &path
-	return b
 }
 
 func (b *MenuBase[W, D]) initWithoutFields(w iMenu[D], bundle any) {
@@ -123,10 +117,6 @@ func (b *MenuBase[W, D]) pushDish(action iDish[D]) int {
 	return len(b.dishes) - 1
 }
 
-func (b *MenuBase[W, D]) Actions() []iDish[D] {
-	return b.dishes
-}
-
 func (b *MenuBase[W, D]) Dishes() []iDish[D] {
 	return b.dishes
 }
@@ -143,9 +133,6 @@ func (b *MenuBase[W, D]) menu() iMenu[D] {
 }
 
 func (b MenuBase[W, D]) Name() string {
-	if b.path != nil {
-		return *b.path
-	}
 	return b.name
 }
 
@@ -154,6 +141,7 @@ type poolLike interface {
 	Put(any)
 }
 
+// wrap the output of poolLike to be a ICookwareFactory
 type poolLikeWrapper[D ICookware] struct {
 	poolLike
 }

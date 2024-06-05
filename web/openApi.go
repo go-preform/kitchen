@@ -71,6 +71,7 @@ func RegisterSwaggerType(t reflect.Type, name string, urlParams [][2]string, bod
 	}
 }
 
+// MakeOpenApi generate open api json from kitchen menus
 func MakeOpenApi(name string, origin []string, basePath, version string, menus ...kitchen.IMenu) ([]byte, error) {
 	var (
 		api       = map[string]any{}
