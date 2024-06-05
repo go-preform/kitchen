@@ -20,6 +20,7 @@ type PipelineActionOutput[M IPipelineModel, O any] struct {
 	Model  M
 }
 
+// A PipelineAction is a super set of Dish specific for managing workflow of stateful data model.
 type PipelineAction[D IPipelineCookware[M], M IPipelineModel, I any, O any] struct {
 	Dish[D, *PipelineActionInput[M, I], *PipelineActionOutput[M, O]]
 	stage           iPipelineStage[D, M]
@@ -34,7 +35,7 @@ func initPipelineAction[D IPipelineCookware[M], M IPipelineModel](parent iCookbo
 	act.initAction(parent, act, name, tags)
 }
 
-// set next status
+// SetNextStage sets the next stage for the action.
 func (p *PipelineAction[D, M, I, O]) SetNextStage(stage IPipelineStage) *PipelineAction[D, M, I, O] {
 	p.nextStatus = stage.Status()
 	return p
@@ -46,6 +47,7 @@ func (p PipelineAction[D, M, I, O]) Status() PipelineStatus {
 	return p.stage.Status()
 }
 
+// SetCooker sets the cooker for the action, will transform to func(i IContext[D], p *PipelineActionInput[M, I]) (output *PipelineActionOutput[M, O], err error).
 func (p *PipelineAction[D, M, I, O]) SetCooker(cooker PipelineDishCooker[D, M, I, O]) *PipelineAction[D, M, I, O] {
 	var (
 		m M
@@ -59,6 +61,7 @@ func (p *PipelineAction[D, M, I, O]) SetCooker(cooker PipelineDishCooker[D, M, I
 	return p
 }
 
+// WillCreateModel returns true if the action will create a model, can input nil in Cook.
 func (p *PipelineAction[D, M, I, O]) WillCreateModel() bool {
 	return p.willCreateModel
 }
@@ -90,13 +93,17 @@ func (p *PipelineAction[D, M, I, O]) initAction(parent iCookbook[D], act iPipeli
 
 var ErrInvalidStatus = errors.New("invalid pipeline status")
 
+// ExecWithModel executes the action with the model and input.
 func (p *PipelineAction[D, M, I, O]) ExecWithModel(ctx context.Context, model M, input I) (output O, err error) {
 	return p.execWithModel(p.newCtx(ctx), model, input)
 }
+
+// ExecWithModelAndDep executes the action with the model, input and dependencies.
 func (p *PipelineAction[D, M, I, O]) ExecWithModelAndDep(ctx context.Context, dep D, model M, input I) (output O, err error) {
 	return p.execWithModel(p.newCtx(ctx, dep), model, input)
 }
 
+// ExecByIdAny executes the action with the input and model id.
 func (p *PipelineAction[D, M, I, O]) ExecByIdAny(ctx context.Context, input any, ids ...any) (output any, err error) {
 	return p.ExecById(ctx, input.(I), ids...)
 }
@@ -142,6 +149,8 @@ func (p *PipelineAction[D, M, I, O]) execWithModel(ctx *Context[D], model M, inp
 	err = dep.FinishTx(tx, err)
 	return
 }
+
+// ModelToMap converts the model to map for logging.
 func (p PipelineAction[D, M, I, O]) ModelToMap(model IPipelineModel) map[string]string {
 	if p.canMap {
 		return model.(IPipelineModelCanMap).ToMap()
@@ -149,6 +158,7 @@ func (p PipelineAction[D, M, I, O]) ModelToMap(model IPipelineModel) map[string]
 	return stringMap.FromStruct(model)
 }
 
+// ExecByIdAndDep executes the action with the dependencies and model id.
 func (p *PipelineAction[D, M, I, O]) ExecByIdAndDep(ctx context.Context, dep D, input I, modelId ...any) (output O, err error) {
 	var (
 		model M
@@ -179,6 +189,7 @@ func (p *PipelineAction[D, M, I, O]) execById(ctx *Context[D], input I, modelId 
 	return p.execWithModel(ctx, model, input)
 }
 
+// ExecById executes the action with the input and model id.
 func (p *PipelineAction[D, M, I, O]) ExecById(ctx context.Context, input I, modelId ...any) (output O, err error) {
 	return p.execById(p.newCtx(ctx), input, modelId...)
 }
@@ -187,6 +198,7 @@ func (p PipelineAction[D, M, I, O]) Pipeline() IPipeline {
 	return p.stage.pipeline()
 }
 
+// PipelineActionInputToAny transforms the input to PipelineActionInput.
 func PipelineActionInputToAny[M IPipelineModel](input any) PipelineActionInput[M, any] {
 	var (
 		iV = reflect.ValueOf(input)
@@ -203,6 +215,7 @@ func PipelineActionInputToAny[M IPipelineModel](input any) PipelineActionInput[M
 	}
 }
 
+// PipelineActionOutputToAny transforms the output to PipelineActionOutput.
 func PipelineActionOutputToAny[M IPipelineModel](output any) PipelineActionOutput[M, any] {
 	var (
 		iV = reflect.ValueOf(output)

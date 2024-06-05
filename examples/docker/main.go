@@ -10,6 +10,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type coffeeCookware struct {
@@ -91,6 +92,7 @@ var (
 var orderCnt1 = []int{0, 0, 0}
 
 func init() {
+	menuStrs := os.Getenv("MENUS")
 
 	localAddr := os.Getenv("LOCAL_ADDR")
 	localPort, _ := strconv.ParseUint(os.Getenv("LOCAL_PORT"), 10, 64)
@@ -132,6 +134,16 @@ func init() {
 	}).Init()
 	if err != nil {
 		panic(err)
+	}
+	if menuStrs != "" {
+		if menuStrs == "none" {
+			mgr.DisableMenu("CoffeeMenu")
+			mgr.DisableMenu("CakeMenu")
+			mgr.DisableMenu("SetMenu")
+		} else {
+			menus := strings.Split(menuStrs, ",")
+			mgr.SelectServeMenus(menus...)
+		}
 	}
 }
 

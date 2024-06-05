@@ -52,6 +52,7 @@ const (
 	MSG_FLAG_STATUS_INHERIT   byte = 9
 )
 
+// server is the default implementation of ILogistic with async request handling.
 type server struct {
 	sync.RWMutex
 	ctx                 context.Context

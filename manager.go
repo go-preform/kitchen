@@ -2,21 +2,16 @@ package kitchen
 
 import (
 	"context"
-	"errors"
 	"github.com/go-preform/kitchen/delivery"
 	"sync"
 )
 
-var (
-	errRunInLocal = errors.New("run in local")
-)
-
+// A Manager is a struct for managing menus for scaling.
 type Manager struct {
 	menus            map[string]IMenu
 	menuById         []IMenu
 	menuInitializers []func() IMenu
 	serveMenuNames   []string
-	kitchens         []IKitchen
 	lock             sync.Mutex
 	server           delivery.ILogistic
 	localHostUrl     string
@@ -25,6 +20,9 @@ type Manager struct {
 	repPort          uint16
 }
 
+// NewDeliveryManager creates a new Manager.
+// localHostUrl is the local host url which typically host from docker/kubernetes.
+// localRepPort is the local port for the manager to listen to and exported for foreign call.
 func NewDeliveryManager(localHostUrl string, localRepPort uint16) IManager {
 	return &Manager{
 		localHostUrl: localHostUrl,
@@ -32,7 +30,9 @@ func NewDeliveryManager(localHostUrl string, localRepPort uint16) IManager {
 	}
 }
 
-// not select = all
+// SelectServeMenus selects the menus to serve.
+// not select = serves all
+// should call after Init
 func (m *Manager) SelectServeMenus(menuNamesNilIsAll ...string) IManager {
 	m.lock.Lock()
 	m.serveMenuNames = menuNamesNilIsAll
@@ -43,6 +43,8 @@ func (m *Manager) SelectServeMenus(menuNamesNilIsAll ...string) IManager {
 	return m
 }
 
+// DisableMenu disables a menu.
+// should call after Init
 func (m *Manager) DisableMenu(name string) IManager {
 	m.lock.Lock()
 	if m.serveMenuNames == nil {
@@ -63,6 +65,7 @@ func (m *Manager) DisableMenu(name string) IManager {
 	return m
 }
 
+// Init initializes the manager and start listening.
 func (m *Manager) Init() (IManager, error) {
 	m.initMenus()
 	var (
@@ -128,11 +131,14 @@ func (m *Manager) initMenus() {
 	}
 }
 
+// AddMenu adds a menu to the manager.
+// menuInitializer is a function that returns a menu, TODO should like menu to dispose when disabled.
 func (m *Manager) AddMenu(menuInitializer func() IMenu) IManager {
 	m.menuInitializers = append(m.menuInitializers, menuInitializer)
 	return m
 }
 
+// SetMainKitchen sets the main host for the manager.
 func (m *Manager) SetMainKitchen(url string, port uint16) IManager {
 	m.hostUrl = url
 	m.repPort = port
@@ -142,6 +148,7 @@ func (m *Manager) SetMainKitchen(url string, port uint16) IManager {
 	return m
 }
 
-func (m *Manager) Order(dish IDish) (func(ctx context.Context, input []byte) (output []byte, err error), error) {
+// Order orders a dish to the cluster.
+func (m *Manager) order(dish IDish) (func(ctx context.Context, input []byte) (output []byte, err error), error) {
 	return m.server.Order(uint16(dish.Menu().ID()), uint16(dish.Id()))
 }

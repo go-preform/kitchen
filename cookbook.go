@@ -10,6 +10,7 @@ import (
 //	return e
 //}
 
+// cookbook is the base struct for dishes, sets and menus
 type cookbook[D ICookware, I any, O any] struct {
 	//beforeListenHandlers []BeforeListenHandler[M]
 	instance                      IInstance
@@ -53,20 +54,24 @@ func (b cookbook[D, I, O]) isInheritableDep() bool {
 	return b.isInheritableCookware
 }
 
+// AfterExec aliases of AfterCook
 func (r *cookbook[D, I, O]) AfterExec(handler AfterListenHandlers[D, I, O], toLog ...any) *cookbook[D, I, O] {
 	return r.AfterCook(handler, toLog...)
 }
 
+// AfterExec registers a handler to be called after the dish has been executed.
 func (r *cookbook[D, I, O]) AfterCook(handler AfterListenHandlers[D, I, O], toLog ...any) *cookbook[D, I, O] {
 	r.afterListenHandlers = append(r.afterListenHandlers, handler)
 	r.afterListenHandlersExtra = append(r.afterListenHandlersExtra, toLog)
 	return r
 }
 
+// AfterExecAsync aliases of AfterCookAsync
 func (r *cookbook[D, I, O]) AfterExecAsync(handler AfterListenHandlers[D, I, O], toLog ...any) *cookbook[D, I, O] {
 	return r.AfterCookAsync(handler, toLog...)
 }
 
+// AfterExecAsync registers a handler to be called after the dish has been executed asynchronously.
 func (r *cookbook[D, I, O]) AfterCookAsync(handler AfterListenHandlers[D, I, O], toLog ...any) *cookbook[D, I, O] {
 	r.asyncAfterListenHandlers = append(r.asyncAfterListenHandlers, handler)
 	r.asyncAfterListenHandlersExtra = append(r.asyncAfterListenHandlersExtra, toLog)
@@ -112,6 +117,7 @@ func (r cookbook[D, I, O]) emitAfterCook(ctx IContext[D], input, output any, err
 	}
 }
 
+// ConcurrentLimit sets the maximum number of concurrent executions of this node and it's children.
 func (r *cookbook[D, I, O]) ConcurrentLimit(limit int32) {
 	if atomic.LoadInt32(r.concurrentLimit) < limit {
 		defer func() {
@@ -176,6 +182,7 @@ func (r *cookbook[D, I, O]) _ifLockThis() func() {
 	}
 }
 
+// Nodes returns the children of this node.
 func (b cookbook[D, I, O]) Nodes() []IInstance {
 	res := make([]IInstance, len(b.nodes))
 	for i, n := range b.nodes {

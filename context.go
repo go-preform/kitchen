@@ -4,6 +4,7 @@ import (
 	"context"
 )
 
+// Context is a struct that holds various information and dependencies needed for the dishes.
 type Context[D ICookware] struct {
 	context.Context
 	menu         iMenu[D]
@@ -28,12 +29,14 @@ type webContext struct {
 	bundle       IWebBundle
 }
 
+// NewWebContext creates a new web context for web router wrappers and prevent the dish context ends after the web request ends.
 func NewWebContext(ctx context.Context, bundle IWebBundle, cookware ICookware) *webContext {
 	wc := &webContext{Context: ctx, bundle: bundle, cookware: cookware}
 	wc.ch = ctx.Done()
 	return wc
 }
 
+// servedWeb is called when the web request has been served, ends the context from web request.
 func (c *webContext) servedWeb() {
 	c.hasServedWeb = true
 	c.err = c.Context.Err()
@@ -83,7 +86,8 @@ func (c Context[D]) traceableCookware() ITraceableCookware[D] {
 	return c.traceableDep
 }
 
-func (c Context[D]) FromWeb() IWebBundle {
+// WebBundle returns the web bundle of the context, generated from router wrapper.
+func (c Context[D]) WebBundle() IWebBundle {
 	if c.webContext != nil {
 		return c.webContext.bundle
 	}
@@ -126,6 +130,8 @@ func (c *Context[D]) logSideEffect(instanceName string, toLog []any) (IContext[D
 	return c, nil
 }
 
+// Session Context will pass through nesting call of dishes,
+// this appends sessions and returns all the session of the context.
 func (c *Context[D]) Session(nodes ...IDishServe) []IDishServe {
 	if len(nodes) != 0 {
 		if c.inherited != nil {
@@ -141,20 +147,27 @@ func (c *Context[D]) Session(nodes ...IDishServe) []IDishServe {
 	return c.session
 }
 
+// TraceSpan returns the trace span of the context, maybe nil if not the cookware not implement any tracer.
 func (c *Context[D]) TraceSpan() iTraceSpan[D] {
 	return c.tracerSpan
 }
 
+// servedWeb is called when the web request has been served, ends the context from web request.
 func (c *Context[D]) servedWeb() {
 	if c.webContext != nil {
 		c.webContext.servedWeb()
 	}
 }
 
+// served is called when the dish has been served, clean up.
 func (c *Context[D]) served() {
 	if len(c.session) == 1 {
 		c.dish.menu().cookwareRecycle(c.cookware)
 	}
+}
+
+func (c *Context[D]) setCookware(cw D) {
+	c.cookware = cw
 }
 
 type PipelineContext[D IPipelineCookware[M], M IPipelineModel] struct {

@@ -76,8 +76,8 @@ type SomeTaskes struct {
 }
 
 someTaskes := kitchen.InitMenu(&SomeTaskes{}, &SomeDependecy{})
-someTaskes.Task1.SetCooker(func(dep *SomeDependecy, input *SomeInput1, output *SomeOutput1) {
-    // do something with input and dependency
+someTaskes.Task1.SetCooker(func(dep *SomeDependecy, input *SomeInput1) (output *SomeOutput1, err error) {
+    // do something with input and dependency and return output or error
 })
 someTaskes.Task2.SetCooker(doSomethingFn)
 
@@ -159,7 +159,7 @@ I am planning to add a dependency initialization and dispose interface to let Ki
 corresponding functions that are enabled and release resources when they are disabled.
 
 And it can perform some extra logic like server middlewares by implementing certain interfaces, for example,
-IWebParsableInput for parsing web requests into input and handling sessions, ACL, etc.
+IWebCookware for parsing web requests into cookware enables handling sessions, ACL, etc.
 
 ### Conclusion
 

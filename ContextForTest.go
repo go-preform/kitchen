@@ -4,6 +4,7 @@ import (
 	"context"
 )
 
+// A ContextForTest is for mocking the Context struct for testing.
 type ContextForTest[D ICookware] struct {
 	context.Context
 	SessionServed []IDishServe
@@ -59,7 +60,7 @@ func (c ContextForTest[D]) logSideEffect(instanceName string, toLog []any) (ICon
 	return nil, nil
 }
 
-func (c ContextForTest[D]) FromWeb() IWebBundle {
+func (c ContextForTest[D]) WebBundle() IWebBundle {
 	return c.webBundle
 }
 
@@ -79,6 +80,10 @@ func (c *ContextForTest[D]) servedWeb() {
 }
 
 func (c *ContextForTest[D]) served() {}
+
+func (c *ContextForTest[D]) setCookware(cookware D) {
+	c.DummyCookware = cookware
+}
 
 type PipelineContextForTest[D IPipelineCookware[M], M IPipelineModel] struct {
 	ContextForTest[D]

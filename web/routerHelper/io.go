@@ -37,22 +37,11 @@ func (w *WebWriter) Write(data []byte) (int, error) {
 	return w.ResponseWriter.Write(data)
 }
 
-func WebReturn(a kitchen.IDish, w http.ResponseWriter, outputAny any, err error, isDataWrapper bool) {
-	var httpCode int
+func WebReturn(a kitchen.IDish, w http.ResponseWriter, outputAny any, err error) {
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
-		if isDataWrapper {
-			outputAny, httpCode = any(a.Cookware()).(IWebCookwareWithDataWrapper).WrapWebOutput(outputAny, err)
-			w.WriteHeader(httpCode)
-			data, err := json.Marshal(outputAny)
-			if err != nil {
-				fmt.Println("marshalling error:", err)
-			}
-			_, _ = w.Write(data)
-		} else {
-			w.WriteHeader(500)
-			_, _ = w.Write([]byte(err.Error()))
-		}
+		w.WriteHeader(500)
+		_, _ = w.Write([]byte(err.Error()))
 		fmt.Println(err)
 		return
 	}
@@ -60,16 +49,6 @@ func WebReturn(a kitchen.IDish, w http.ResponseWriter, outputAny any, err error,
 		switch outputAny := outputAny.(type) {
 		case string:
 			w.Header().Set("Content-Type", "text/plain")
-			if isDataWrapper {
-				output, httpCode := any(a.Cookware()).(IWebCookwareWithDataWrapper).WrapWebOutput(outputAny, err)
-				data, err := json.Marshal(output)
-				if err != nil {
-					fmt.Println("marshalling error:", err)
-				}
-				w.WriteHeader(httpCode)
-				_, _ = w.Write(data)
-				return
-			}
 			_, _ = w.Write([]byte(outputAny))
 		default:
 			if msg, ok := outputAny.(proto.Message); ok {
@@ -79,10 +58,6 @@ func WebReturn(a kitchen.IDish, w http.ResponseWriter, outputAny any, err error,
 				_, _ = w.Write(data)
 			} else {
 				w.Header().Set("Content-Type", "application/json")
-				if isDataWrapper {
-					outputAny, httpCode = any(a.Cookware()).(IWebCookwareWithDataWrapper).WrapWebOutput(outputAny, err)
-					w.WriteHeader(httpCode)
-				}
 				data, err := json.Marshal(outputAny)
 				if err != nil {
 					fmt.Println("marshalling error:", err)

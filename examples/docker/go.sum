@@ -3,9 +3,8 @@ github.com/andybalholm/brotli v1.1.0/go.mod h1:sms7XGricyQI9K10gOSf56VKKWS4oLer5
 github.com/coreos/go-systemd/v22 v22.5.0/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/go-preform/kitchen v0.1.2-r4 h1:km2f/3qGSxYqn3Dh0JCV/fS29AP1dLliiRmCNQxoR6c=
-github.com/go-preform/kitchen v0.1.2-r4/go.mod h1:1UMHz+p9e9kL3PiwD8nNLU21nGMHfiMRvH+BeP03TjU=
-github.com/go-preform/kitchen v0.1.2-r6/go.mod h1:1UMHz+p9e9kL3PiwD8nNLU21nGMHfiMRvH+BeP03TjU=
+github.com/go-preform/kitchen v0.1.2-r9 h1:6x/PjyDZ9cFAmE/BYB3buBnKmqyVMkQj/4mJrGzLzw0=
+github.com/go-preform/kitchen v0.1.2-r9/go.mod h1:Y+9VeJpwJs8HE5wrHDZNPMdaP7hMHHdB0+QMc5Q+Ag0=
 github.com/go-zeromq/goczmq/v4 v4.2.2 h1:HAJN+i+3NW55ijMJJhk7oWxHKXgAuSBkoFfvr8bYj4U=
 github.com/go-zeromq/goczmq/v4 v4.2.2/go.mod h1:Sm/lxrfxP/Oxqs0tnHD6WAhwkWrx+S+1MRrKzcxoaYE=
 github.com/go-zeromq/zmq4 v0.17.0 h1:r12/XdqPeRbuaF4C3QZJeWCt7a5vpJbslDH1rTXF+Kc=

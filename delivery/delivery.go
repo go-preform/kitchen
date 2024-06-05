@@ -18,11 +18,14 @@ type Deliverable struct {
 	OrderId uint64
 }
 
+// ILogistic is an interface of managing scaling of kitchen.
 type ILogistic interface {
 	Init() error
 	SetOrderHandlerPerMenu([]func(context.Context, *Order))
 	SwitchLeader(url string, port uint16)
+	// Shutdown is for shutting down the logistic server keep every call in local
 	Shutdown()
 	IsLeader() bool
+	// Order is for sending orders to cluster
 	Order(menuId, dishId uint16, skipNodeIds ...uint32) (func(ctx context.Context, input []byte) ([]byte, error), error)
 }

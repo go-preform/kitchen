@@ -4,6 +4,7 @@ import (
 	"reflect"
 )
 
+// PipelineBase is a super set of MenuBase, should embed to all pipelines.
 type PipelineBase[P iPipeline[D, M], D IPipelineCookware[M], M IPipelineModel] struct {
 	MenuBase[P, D]
 	StageByStatus map[string]iPipelineStage[D, M]
@@ -58,6 +59,7 @@ func iteratePipelineStruct[D IPipelineCookware[M], M IPipelineModel](s any, pipe
 	return nodes
 }
 
+// GetActionsForStatus returns the actions available for the status.
 func (p *PipelineBase[P, D, M]) GetActionsForStatus(status string) []IPipelineAction {
 	if stage, ok := p.StageByStatus[status]; ok {
 		return stage.Actions()
@@ -65,6 +67,7 @@ func (p *PipelineBase[P, D, M]) GetActionsForStatus(status string) []IPipelineAc
 	return nil
 }
 
+// GetActionsForModel returns the actions available for the model.
 func (p *PipelineBase[P, D, M]) GetActionsForModel(model any) (string, []IPipelineAction) {
 	status := string(model.(IPipelineModel).GetStatus())
 	return status, p.GetActionsForStatus(status)

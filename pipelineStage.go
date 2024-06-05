@@ -1,5 +1,7 @@
 package kitchen
 
+// PipelineStage is a super set of SetBase, should embed to all pipeline stages.
+// example: a order model can have stages like "ordered", "wait for payment", "pending delivery", "delivery", "complete".
 type PipelineStage[D IPipelineCookware[M], M IPipelineModel] struct {
 	SetBase[D]
 	status    PipelineStatus
@@ -33,6 +35,7 @@ func (ps PipelineStage[D, M]) pipeline() iPipeline[D, M] {
 	return ps._pipeline
 }
 
+// Actions returns the actions available for the stage.
 func (ps PipelineStage[D, M]) Actions() []IPipelineAction {
 	return ps.actions
 }
