@@ -103,7 +103,7 @@ func init() {
 		return mgrMenu1.cakeMenu
 	}).AddMenu(func() kitchen.IMenu {
 		return mgrMenu1.setMenu
-	}).Init()
+	}).Init(context.Background())
 	if err != nil {
 		panic(err)
 	}
@@ -117,7 +117,7 @@ func init() {
 		return mgrMenu2.cakeMenu
 	}).AddMenu(func() kitchen.IMenu {
 		return mgrMenu2.setMenu
-	}).SetMainKitchen("tcp://127.0.0.1", 20000).Init()
+	}).SetMainKitchen("tcp://127.0.0.1", 20000).Init(context.Background())
 	if err != nil {
 		panic(err)
 	}
@@ -134,7 +134,7 @@ func init() {
 		AddMenu(func() kitchen.IMenu {
 			return mgrMenu3.setMenu
 		}).
-		SetMainKitchen("tcp://127.0.0.1", 20000).Init()
+		SetMainKitchen("tcp://127.0.0.1", 20000).Init(context.Background())
 	if err != nil {
 		panic(err)
 	}

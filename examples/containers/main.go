@@ -1,16 +1,22 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"github.com/fasthttp/router"
 	"github.com/go-preform/kitchen"
 	testProto "github.com/go-preform/kitchen/test/proto"
+	"github.com/go-preform/kitchen/web/routerHelper/fasthttpHelper"
 	"github.com/valyala/fasthttp"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 )
 
 type coffeeCookware struct {
@@ -92,6 +98,8 @@ var (
 var orderCnt1 = []int{0, 0, 0}
 
 func init() {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	menuStrs := os.Getenv("MENUS")
 
 	localAddr := os.Getenv("LOCAL_ADDR")
@@ -131,7 +139,7 @@ func init() {
 		return mgrMenu1.cakeMenu
 	}).AddMenu(func() kitchen.IMenu {
 		return mgrMenu1.setMenu
-	}).Init()
+	}).Init(ctx)
 	if err != nil {
 		panic(err)
 	}
@@ -145,6 +153,13 @@ func init() {
 			mgr.SelectServeMenus(menus...)
 		}
 	}
+	go func() {
+		sigs := make(chan os.Signal, 1)
+		signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+		<-sigs
+		cancel()
+		time.Sleep(time.Second)
+	}()
 }
 
 func main() {
@@ -157,54 +172,35 @@ func main() {
 		httpPort = 80
 	}
 
-	server := &fasthttp.Server{
-		Handler: func(ctx *fasthttp.RequestCtx) {
-			switch string(ctx.Path()) {
-			case "/disable":
-				mgr.DisableMenu(string(ctx.QueryArgs().Peek("menu")))
-				ctx.WriteString("Disabled:" + string(ctx.QueryArgs().Peek("menu")))
-			case "/cappuccino_local":
-				for i := 0; i < 1000000; i++ {
-					_ = i ^ 2 ^ 2 ^ 2 ^ 2
-				} //simulate cooking time
-				input := &testProto.CappuccinoInput{Beans: "Arabica", Milk: "Whole"}
-				orderCnt1[0]++
-				ctx.WriteString("Cappuccino with " + input.Beans + " beans and " + input.Milk + " milk")
-			case "/cappuccino":
-				coffee, err := mgrMenu1.coffeeMenu.Cappuccino.Cook(ctx, &testProto.CappuccinoInput{Beans: "Arabica", Milk: "Whole"})
-				if err != nil {
-					ctx.SetStatusCode(http.StatusInternalServerError)
-					return
-				}
-				ctx.WriteString(coffee.Cappuccino)
-			case "/tiramisu":
-				cake, err := mgrMenu1.cakeMenu.Tiramisu.Cook(ctx, &testProto.TiramisuInput{Cheese: "Mascarpone", Coffee: "Espresso", Wine: "Marsala"})
-				if err != nil {
-					ctx.SetStatusCode(http.StatusInternalServerError)
-					return
-				}
-				ctx.WriteString(cake.Tiramisu)
-			case "/set":
-				set, err := mgrMenu1.setMenu.CakeAndCoffee.Cook(ctx, &testProto.SetInput{
-					Tiramisu:   &testProto.TiramisuInput{Cheese: "Mascarpone", Coffee: "Espresso", Wine: "Marsala"},
-					Cappuccino: &testProto.CappuccinoInput{Beans: "Arabica", Milk: "Whole"},
-				})
-				if err != nil {
-					ctx.SetStatusCode(http.StatusInternalServerError)
-					return
-				}
-				ctx.WriteString(set.Tiramisu.Tiramisu + " and " + set.Cappuccino.Cappuccino)
-			case "/count":
-				ctx.WriteString(fmt.Sprintf("Cappuccino: %d, Tiramisu: %d, Set: %d", orderCnt1[0], orderCnt1[1], orderCnt1[2]))
-			}
-		},
-	}
+	fastHttpRouter := router.New()
+	fasthttpHelper.NewWrapper(fastHttpRouter).
+		AddMenuToRouter(mgrMenu1.coffeeMenu).
+		AddMenuToRouter(mgrMenu1.cakeMenu).
+		AddMenuToRouter(mgrMenu1.setMenu)
+
+	fastHttpRouter.GET("/count", func(ctx *fasthttp.RequestCtx) {
+		_, _ = ctx.WriteString(fmt.Sprintf("Cappuccino: %d, Tiramisu: %d, Set: %d", orderCnt1[0], orderCnt1[1], orderCnt1[2]))
+	})
+	fastHttpRouter.GET("/cappuccino_local", func(ctx *fasthttp.RequestCtx) {
+		for i := 0; i < 1000000; i++ {
+			_ = i ^ 2 ^ 2 ^ 2 ^ 2
+		}
+		input := &testProto.CappuccinoInput{Beans: string(ctx.QueryArgs().Peek("Beans")), Milk: string(ctx.QueryArgs().Peek("Milk"))}
+		orderCnt1[0]++
+		_, _ = ctx.WriteString("Cappuccino with " + input.Beans + " beans and " + input.Milk + " milk")
+	})
+	//dynamic disable menu
+	fastHttpRouter.GET("/disable", func(ctx *fasthttp.RequestCtx) {
+		mgr.DisableMenu(string(ctx.QueryArgs().Peek("menu")))
+		_, _ = ctx.WriteString("Disabled:" + string(ctx.QueryArgs().Peek("menu")))
+	})
 
 	go func() {
+		//pprof
 		log.Println(http.ListenAndServe(fmt.Sprintf("%s:8080", httpAddr), nil))
 	}()
 
-	if err := fasthttp.ListenAndServe(fmt.Sprintf("%s:%d", httpAddr, httpPort), server.Handler); err != nil {
+	if err := fasthttp.ListenAndServe(fmt.Sprintf("%s:%d", httpAddr, httpPort), fastHttpRouter.Handler); err != nil {
 		log.Fatalf("Error in ListenAndServe: %v", err)
 	}
 

@@ -20,7 +20,7 @@ type Deliverable struct {
 
 // ILogistic is an interface of managing scaling of kitchen.
 type ILogistic interface {
-	Init() error
+	Init(ctx context.Context) error
 	SetOrderHandlerPerMenu([]func(context.Context, *Order))
 	SwitchLeader(url string, port uint16)
 	// Shutdown is for shutting down the logistic server keep every call in local
@@ -29,3 +29,15 @@ type ILogistic interface {
 	// Order is for sending orders to cluster
 	Order(menuId, dishId uint16, skipNodeIds ...uint32) (func(ctx context.Context, input []byte) ([]byte, error), error)
 }
+
+type LogisticOpt struct {
+	disableMasterElection bool
+}
+
+func OptMasterElectionOnDrop(on bool) iLogisticOptSetter {
+	return func(opt *LogisticOpt) {
+		opt.disableMasterElection = !on
+	}
+}
+
+type iLogisticOptSetter func(*LogisticOpt)

@@ -66,7 +66,7 @@ func (m *Manager) DisableMenu(name string) IManager {
 }
 
 // Init initializes the manager and start listening.
-func (m *Manager) Init() (IManager, error) {
+func (m *Manager) Init(ctx context.Context) (IManager, error) {
 	m.initMenus()
 	var (
 		err error
@@ -85,7 +85,7 @@ func (m *Manager) Init() (IManager, error) {
 		}
 	}
 	m.server.SetOrderHandlerPerMenu(handlers)
-	err = m.server.Init()
+	err = m.server.Init(ctx)
 	if err != nil {
 		return nil, err
 	}

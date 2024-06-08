@@ -19,7 +19,7 @@ func (m *wrapper) FormatUrlParam(name string) string {
 	return routerHelper.DefaultUrlParamWrapper(name)
 }
 
-func (m *wrapper) AddMenuToRouter(instance kitchen.IInstance, prefix ...string) {
+func (m *wrapper) AddMenuToRouter(instance kitchen.IInstance, prefix ...string) routerHelper.IWebWrapper {
 	var (
 		method   string
 		urlParts []string
@@ -44,6 +44,7 @@ func (m *wrapper) AddMenuToRouter(instance kitchen.IInstance, prefix ...string) 
 			m.AddMenuToRouter(group, append(prefix, strcase.ToSnake(group.Name()))...)
 		}
 	}
+	return m
 }
 
 func (m *wrapper) serveHttp(dish kitchen.IDish) (method string, urlParts []string, handler echo.HandlerFunc) {

@@ -1,0 +1,113 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kitchen-master
+spec:
+  clusterIP: None
+  selector:
+    kitchen: test
+    kitchen_role: master
+  ports:
+    - protocol: TCP
+      port: 10001
+      targetPort: 10001
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kitchen-web
+spec:
+  selector:
+    kitchen: test
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kitchen-test-master
+  labels:
+    kitchen: test
+    kitchen_role: master
+spec:
+  securityContext:
+    sysctls:
+      - name: net.ipv4.ip_unprivileged_port_start
+        value: "23"
+  containers:
+    - image: kitchen-test
+      name: kitchen-test-master
+      env:
+        - name: LOCAL_ADDR
+          value: tcp://kubernetes
+      ports:
+        - containerPort: 80
+          name: web
+        - containerPort: 10001
+          name: kitchen
+      resources:
+        limits:
+          cpu: 4000m
+        requests:
+          cpu: 100m
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kitchen-test-workers
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      kitchen_role: worker
+  template:
+    metadata:
+      labels:
+    #    kitchen: test
+        kitchen_role: worker
+    spec:
+      securityContext:
+        sysctls:
+          - name: net.ipv4.ip_unprivileged_port_start
+            value: "23"
+      containers:
+        - name: kitchen-test-worker
+          image: kitchen-test
+          env:
+            - name: LOCAL_ADDR
+              value: tcp://kubernetes
+            - name: HOST_ADDR
+              value: tcp://kitchen-master.default.svc.cluster.local
+            - name: HOST_PORT
+              value: "10001"
+          ports:
+          - containerPort: 80
+            name: web
+          - containerPort: 10001
+            name: kitchen
+          resources:
+            limits:
+              cpu: 4000m
+            requests:
+              cpu: 100m
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: kitchen-test-worker
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: kitchen-test-workers
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 75

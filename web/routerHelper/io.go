@@ -105,6 +105,9 @@ func ParseRequestToInput(input any, bundle kitchen.IWebBundle, webUrlParamMap []
 			if raw, err = bundle.Body(); err == nil && len(raw) != 0 {
 				if msg, ok := input.(proto.Message); ok {
 					err = proto.Unmarshal(raw, msg)
+					if err != nil && raw[0] == '{' {
+						err = json.Unmarshal(raw, &input)
+					}
 				} else {
 					err = json.Unmarshal(raw, &input)
 				}

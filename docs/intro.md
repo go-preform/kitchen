@@ -22,8 +22,9 @@ they are now in network calls—an absolute nightmare.
 
 I do love monoliths. If we can’t foresee a million users or thousands of concurrency, who needs microservices?
 It’s way easier to develop, deploy, and maintain. No need to worry about service discovery, inter-service
-portals, network drops, latency, blocking, timeouts, etc. And as hardware performance and CI/CD techniques
-improve, a monolith on a 100+ core server with proper pipelines can well support thousands of transactions 
+portals, network drops, latency, blocking, timeouts, etc. Of course a well-defined Kubernetes setup will help a lot,
+but that's still not easy at all. And as hardware performance and CI/CD techniques improve, a monolith on a 100+ core 
+server with proper pipelines can well support thousands of transactions 
 per second with minimal downtime. And FYR, the request per second of Google search is 40K rps in avg.
 And if a 100 cores server is too expensive in long run, well-designed monolith can auto-scale itself horizontally;
 I would say >90% of the time it’s sufficient.

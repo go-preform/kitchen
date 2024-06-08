@@ -78,7 +78,7 @@ type (
 		AddMenu(menuInitializer func() IMenu) IManager
 		SetMainKitchen(url string, port uint16) IManager
 		order(dish IDish) (func(ctx context.Context, input []byte) (output []byte, err error), error)
-		Init() (IManager, error)
+		Init(ctx context.Context) (IManager, error)
 		SelectServeMenus(menuNames ...string) IManager
 		DisableMenu(name string) IManager
 	}

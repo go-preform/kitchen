@@ -32,7 +32,7 @@ func init() {
 				order.Response(order.Input, nil)
 			}}
 		})(i))
-		err = mainServers[i].Init()
+		err = mainServers[i].Init(context.Background())
 		if err != nil {
 			panic(err)
 		}
@@ -40,7 +40,7 @@ func init() {
 	time.Sleep(time.Millisecond * 100)
 	for i, l := 0, len(nodeServers); i < l; i++ {
 		nodeServers[i] = NewServer("tcp://127.0.0.1", uint16(20000+i), "tcp://127.0.0.1", uint16(10000+i%len(mainServers)))
-		err = nodeServers[i].Init()
+		err = nodeServers[i].Init(context.Background())
 		if err != nil {
 			panic(err)
 		}
