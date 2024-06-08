@@ -10,8 +10,9 @@ services:
           cpus: "4.0"
     environment:
       - LOCAL_ADDR=tcp://kitchen-test-node1-1
-      #only as gateway
-      - MENUS=
+      # if you want the master serve as gateway only
+      # set to serve no menus
+      #- MENUS=
     ports:
       - 80:80
       - 8080:8080
@@ -27,13 +28,13 @@ services:
       - HOST_ADDR=tcp://kitchen-test-node1-1
       - HOST_PORT=10001
       - LOCAL_ADDR=tcp://kitchen-test-node2-1
-      - LOCAL_PORT=10002
+      - LOCAL_PORT=10001
       - HTTP_PORT=81
       - MENUS=CoffeeMenu
     ports:
       - 81:81
-      - 10002:10002
     depends_on:
+      # make sure master is up to prevent spinning
       kitchen-test-node1:
         condition: service_started
   kitchen-test-node3:
@@ -47,12 +48,11 @@ services:
       - HOST_ADDR=tcp://kitchen-test-node1-1
       - HOST_PORT=10001
       - LOCAL_ADDR=tcp://kitchen-test-node3-1
-      - LOCAL_PORT=10003
+      - LOCAL_PORT=10001
       - HTTP_PORT=82
       - MENUS=CakeMenu
     ports:
       - 82:82
-      - 10003:10003
     depends_on:
       kitchen-test-node1:
         condition: service_started
@@ -67,12 +67,11 @@ services:
       - HOST_ADDR=tcp://kitchen-test-node1-1
       - HOST_PORT=10001
       - LOCAL_ADDR=tcp://kitchen-test-node4-1
-      - LOCAL_PORT=10004
+      - LOCAL_PORT=10001
       - HTTP_PORT=83
       - MENUS=SetMenu,CoffeeMenu
     ports:
       - 83:83
-      - 10004:10004
     depends_on:
       kitchen-test-node1:
         condition: service_started

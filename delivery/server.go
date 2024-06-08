@@ -11,6 +11,7 @@ import (
 	"github.com/pbnjay/memory"
 	"google.golang.org/protobuf/proto"
 	"math"
+	"os/exec"
 	"runtime"
 	"sort"
 	"strings"
@@ -50,6 +51,7 @@ const (
 	MSG_FLAG_STATUS_BOARDCASE byte = 7
 	MSG_FLAG_STATUS_PING      byte = 8
 	MSG_FLAG_STATUS_INHERIT   byte = 9
+	MSG_FLAG_NODE_OFFLINE     byte = 100
 )
 
 // server is the default implementation of ILogistic with async request handling.
@@ -75,6 +77,7 @@ type server struct {
 	status              *deliveryProto.NodeStatus
 	peers               []*node
 	peersByUrl          map[string]*node
+	options             LogisticOpt
 	leaderRank          []uint32
 	loadingPtr          *int32
 	callStatForSecond   *uint32
@@ -101,7 +104,7 @@ func (s *server) SwitchHost(host string) {
 	}
 }
 
-func NewServer(localHostUrl string, localRepPort uint16, mainHostUrl string, hostRepPort uint16) ILogistic {
+func NewServer(localHostUrl string, localRepPort uint16, mainHostUrl string, hostRepPort uint16, opt ...iLogisticOptSetter) ILogistic {
 	s := &server{
 		localUrl:     localHostUrl,
 		mainUrl:      mainHostUrl,
@@ -113,6 +116,19 @@ func NewServer(localHostUrl string, localRepPort uint16, mainHostUrl string, hos
 			Host:    localHostUrl,
 		},
 	}
+	if strings.HasSuffix(localHostUrl, "//kubernetes") {
+		ip, err := exec.Command("hostname", "-i").Output()
+		if err == nil {
+			s.localUrl = fmt.Sprintf("tcp://%s", strings.TrimSpace(string(ip)))
+		} else {
+			LogErr("get ip", err)
+		}
+		// handle by kube
+		s.options.disableMasterElection = true
+	}
+	for _, setter := range opt {
+		setter(&s.options)
+	}
 	s.loadingPtr = &s.status.Loading
 	return s
 }
@@ -121,8 +137,8 @@ func (s *server) Shutdown() {
 	s.ctxCancel()
 }
 
-func (s *server) Init() error {
-	s.ctx, s.ctxCancel = context.WithCancel(context.Background())
+func (s *server) Init(ctx context.Context) error {
+	s.ctx, s.ctxCancel = context.WithCancel(ctx)
 	s.status.MemoryMB = uint32(memory.TotalMemory() / 1024 / 1024)
 	s.status.CpuCore = uint32(runtime.NumCPU())
 	if s.mainUrl == "" {
@@ -325,6 +341,14 @@ func (s *server) listenRequest() error {
 						err = responder.Send(zmq.NewMsg(append([]byte{0})))
 					}
 				}
+			case MSG_FLAG_NODE_OFFLINE:
+				nodeId = binary.BigEndian.Uint32(reqData[1:])
+				if len(s.peers) > int(nodeId-1) {
+					s.peers[nodeId-1].status.Offline = true
+				}
+				if s.IsLeader() {
+					s.recvStatusCh <- nil
+				}
 			}
 		}
 	}()
@@ -446,6 +470,13 @@ func (s *server) handleOrders() {
 				s.status.ProcessedInMinute -= atomic.SwapUint32(statForSeconds[i], 0)
 				s.status.ProcessedInMinute += atomic.LoadUint32(s.callStatForSecond)
 				s.callStatForSecond = statForSeconds[i]
+			case <-s.ctx.Done():
+				data := make([]byte, 5)
+				data[0] = MSG_FLAG_NODE_OFFLINE
+				binary.BigEndian.PutUint32(data[1:], s.nodeId)
+				_ = s.peers[0].pushMessage(data)
+				ticker.Stop()
+				return
 			case <-s.handleCtx.Done():
 				ticker.Stop()
 				return

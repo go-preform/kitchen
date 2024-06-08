@@ -16,7 +16,7 @@ type (
 	// IWebWrapper is an interface for web router wrapper
 	IWebWrapper interface {
 		FormatUrlParam(name string) string
-		AddMenuToRouter(instance kitchen.IInstance, prefix ...string)
+		AddMenuToRouter(instance kitchen.IInstance, prefix ...string) IWebWrapper
 	}
 	// IWebCookware is an interface for cookware that can be parsed from web request
 	IWebCookware interface {
