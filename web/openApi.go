@@ -363,7 +363,7 @@ func nodeToSwagger(w kitchen.IInstance, prefix []string, options ...SwaggerOptio
 				}
 				if len(queryParams) != 0 {
 					var (
-						params = make([]map[string]any, len(queryParams))
+						params = make([]map[string]any, 0, len(queryParams))
 					)
 					for _, p := range queryParams {
 						params = append(params, map[string]any{
@@ -399,7 +399,7 @@ func nodeToSwagger(w kitchen.IInstance, prefix []string, options ...SwaggerOptio
 			body["description"] = tags.Get("desc")
 			body["operationId"] = tags.Get("operationId")
 			body["summary"] = tags.Get("summary")
-			body["tags"] = tags.Get("tags")
+			body["tags"] = strings.Split(tags.Get("tags"), ",")
 
 			m := map[string]any{
 				strings.ToLower(method): body,
@@ -423,7 +423,11 @@ func nodeToSwagger(w kitchen.IInstance, prefix []string, options ...SwaggerOptio
 					},
 				})
 			}
-			body["parameters"] = parameters
+			if _, ok = body["parameters"]; ok {
+				body["parameters"] = append(body["parameters"].([]map[string]any), parameters...)
+			} else {
+				body["parameters"] = parameters
+			}
 			/*if url == "" {
 				url = "/" + strings.Join(append(prefix, urlParams...), "/")
 			} else {

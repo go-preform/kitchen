@@ -61,6 +61,7 @@ func DishUrlAndMethod(dish kitchen.IDish, urlParamWrapper func(string) string) (
 		}
 	}
 	if tags.Get("urlParams") != "" {
+		urlParams = nil
 		toAdd := strings.Split(tags.Get("urlParams"), ",")
 		if tags.Get("urlParamDescs") != "" {
 			descs := strings.Split(tags.Get("urlParamDescs"), ",")
@@ -77,7 +78,7 @@ func DishUrlAndMethod(dish kitchen.IDish, urlParamWrapper func(string) string) (
 	case "GET", "HEAD", "OPTIONS", "PATCH", "TRACE", "CONNECT", "POST", "UPDATE", "DELETE", "PUT":
 		method = dish.Name()
 	default:
-		if tags.Get("path") != "" {
+		if _, ok := tags.Lookup("path"); ok {
 			url = tags.Get("path")
 		} else {
 			url = strcase.ToSnake(dish.Name())

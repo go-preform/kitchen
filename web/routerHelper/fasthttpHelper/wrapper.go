@@ -36,13 +36,23 @@ func (m *wrapper) AddMenuToRouter(instance kitchen.IInstance, prefix ...string) 
 			prefix[0] = prefix[0][1:]
 		}
 	}
-	for _, node := range instance.Nodes() {
-		if action, ok = any(node).(kitchen.IDish); ok {
-			method, urlParts, handler = m.serveHttp(action)
-			urlParts = append(prefix, urlParts...)
+	if action, ok = any(instance).(kitchen.IDish); ok {
+		method, urlParts, handler = m.serveHttp(action)
+		urlParts = append(prefix, urlParts...)
+		for _, method := range strings.Split(method, ",") {
 			m.router.Handle(method, strings.ReplaceAll("/"+strings.Join(urlParts, "/"), "//", "/"), handler)
-		} else if group, ok = any(node).(kitchen.ISet); ok {
-			m.AddMenuToRouter(group, append(prefix, strcase.ToSnake(group.Name()))...)
+		}
+	} else {
+		for _, node := range instance.Nodes() {
+			if action, ok = any(node).(kitchen.IDish); ok {
+				method, urlParts, handler = m.serveHttp(action)
+				urlParts = append(prefix, urlParts...)
+				for _, method := range strings.Split(method, ",") {
+					m.router.Handle(method, strings.ReplaceAll("/"+strings.Join(urlParts, "/"), "//", "/"), handler)
+				}
+			} else if group, ok = any(node).(kitchen.ISet); ok {
+				m.AddMenuToRouter(group, append(prefix, strcase.ToSnake(group.Name()))...)
+			}
 		}
 	}
 	return m
