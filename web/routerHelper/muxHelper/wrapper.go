@@ -1,6 +1,7 @@
 package muxHelper
 
 import (
+	"fmt"
 	"github.com/go-preform/kitchen"
 	"github.com/go-preform/kitchen/web/routerHelper"
 	"github.com/gorilla/mux"
@@ -44,13 +45,15 @@ func (m *wrapper) AddMenuToRouter(instance kitchen.IInstance, prefix ...string) 
 	if action, ok = any(instance).(kitchen.IDish); ok {
 		method, urlParts, handler = m.serveHttp(action)
 		urlParts = append(prefix, urlParts...)
-		m.router.HandleFunc(strings.ReplaceAll("/"+strings.Join(urlParts, "/"), "//", "/"), handler).Methods(method)
+		fmt.Println(method, strings.ReplaceAll("/"+strings.Join(urlParts, "/"), "//", "/"))
+		m.router.HandleFunc(strings.ReplaceAll("/"+strings.Join(urlParts, "/"), "//", "/"), handler).Methods(strings.Split(method, ",")...)
 	} else {
 		for _, node := range instance.Nodes() {
 			if action, ok = any(node).(kitchen.IDish); ok {
 				method, urlParts, handler = m.serveHttp(action)
 				urlParts = append(prefix, urlParts...)
-				m.router.HandleFunc(strings.ReplaceAll("/"+strings.Join(urlParts, "/"), "//", "/"), handler).Methods(method)
+				fmt.Println(method, strings.ReplaceAll("/"+strings.Join(urlParts, "/"), "//", "/"))
+				m.router.HandleFunc(strings.ReplaceAll("/"+strings.Join(urlParts, "/"), "//", "/"), handler).Methods(strings.Split(method, ",")...)
 			} else if group, ok = any(node).(kitchen.ISet); ok {
 				m.AddMenuToRouter(group, append(prefix, strcase.ToSnake(group.Name()))...)
 			}

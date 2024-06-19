@@ -196,8 +196,7 @@ func (d ZeroLogTraceableCookware[D]) StartTrace(ctx IContext[D], id string, inpu
 	if d.Logger.GetLevel() > zerolog.DebugLevel {
 		return ctx, &zeroLogTraceSpan[D]{d.Logger}
 	}
-	*d.Logger = d.Logger.With().Str("dishId", id).Logger()
-	logger := d.Logger.With().Str("action", ctx.Dish().FullName()).Logger()
+	logger := d.Logger.With().Str("dishId", id).Str("action", ctx.Dish().FullName()).Logger()
 	logger.Debug().Interface("input", input).Msg("call")
 	return ctx.GetCtx(), &zeroLogTraceSpan[D]{logger: &logger}
 }

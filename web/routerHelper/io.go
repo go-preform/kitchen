@@ -38,34 +38,38 @@ func (w *WebWriter) Write(data []byte) (int, error) {
 }
 
 func WebReturn(a kitchen.IDish, w http.ResponseWriter, outputAny any, err error) {
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(500)
-		_, _ = w.Write([]byte(err.Error()))
-		fmt.Println(err)
-		return
-	}
+	var data []byte
 	if outputAny != nil {
 		switch outputAny := outputAny.(type) {
 		case string:
 			w.Header().Set("Content-Type", "text/plain")
-			_, _ = w.Write([]byte(outputAny))
+			data = []byte(outputAny)
 		default:
+			var marshalErr error
 			if msg, ok := outputAny.(proto.Message); ok {
 				//todo wrap
 				w.Header().Set("Content-Type", "application/octet-stream")
-				data, _ := proto.Marshal(msg)
-				_, _ = w.Write(data)
+				data, _ = proto.Marshal(msg)
 			} else {
 				w.Header().Set("Content-Type", "application/json")
-				data, err := json.Marshal(outputAny)
-				if err != nil {
+				data, marshalErr = json.Marshal(outputAny)
+				if marshalErr != nil {
 					fmt.Println("marshalling error:", err)
 				}
-				_, _ = w.Write(data)
 			}
 		}
 	}
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(500)
+		if data != nil {
+			_, _ = w.Write(data)
+		} else {
+			_, _ = w.Write([]byte(err.Error()))
+		}
+		return
+	}
+	_, _ = w.Write(data)
 }
 
 func ParseRequestToInput(input any, bundle kitchen.IWebBundle, webUrlParamMap []int, isWebInput bool) (processedInput any, raw []byte, err error) {
